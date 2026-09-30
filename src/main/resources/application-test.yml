@@ -1,0 +1,45 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  datasource:
+    url: jdbc:postgresql://${DB_TEST_HOST:localhost}:${DB_TEST_PORT:5432}/${DB_TEST_NAME:sports_booking_test}
+    username: ${DB_TEST_USERNAME:sports}
+    password: ${DB_TEST_PASSWORD:sports}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: false
+
+  data:
+    redis:
+      host: ${REDIS_TEST_HOST:localhost}
+      port: ${REDIS_TEST_PORT:6379}
+      database: ${REDIS_TEST_DATABASE:1}
+      username: ${REDIS_TEST_USERNAME:}
+      password: ${REDIS_TEST_PASSWORD:}
+      timeout: 3s
+
+  rabbitmq:
+    host: ${RABBITMQ_TEST_HOST:localhost}
+    port: ${RABBITMQ_TEST_PORT:5672}
+    username: ${RABBITMQ_TEST_USERNAME:sports}
+    password: ${RABBITMQ_TEST_PASSWORD:sports}
+    virtual-host: ${RABBITMQ_TEST_VIRTUAL_HOST:/}
+
+    listener:
+      simple:
+        auto-startup: false
+
+logging:
+  level:
+    root: WARN
+    dev.booking.sports: INFO

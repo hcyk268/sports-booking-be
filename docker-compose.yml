@@ -1,0 +1,90 @@
+services:
+  # 1. PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: sports-booking-postgres
+    restart: unless-stopped
+
+    ports:
+      - "${DB_PORT:-5432}:5432"
+
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sports_booking_dev}
+      POSTGRES_USER: ${DB_USERNAME:-sports}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sports}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USERNAME:-sports} -d ${DB_NAME:-sports_booking_dev}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - sports-network
+
+  # 2. Redis
+  redis:
+    image: redis:7-alpine
+    container_name: sports-booking-redis
+    restart: unless-stopped
+
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - sports-network
+
+  # 3. RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sports-booking-rabbitmq
+    restart: unless-stopped
+
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "15672:15672"
+
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-sports}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-sports}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VIRTUAL_HOST:-/}
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+    networks:
+      - sports-network
+
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  sports-network:
+    driver: bridge

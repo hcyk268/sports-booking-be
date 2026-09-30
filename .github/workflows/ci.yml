@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sports_booking_test
+          POSTGRES_USER: sports
+          POSTGRES_PASSWORD: sports
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U sports -d sports_booking_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: sports
+          RABBITMQ_DEFAULT_PASS: sports
+          RABBITMQ_DEFAULT_VHOST: /
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+      - name: Build and test
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+          DB_TEST_HOST: localhost
+          DB_TEST_PORT: 5432
+          DB_TEST_NAME: sports_booking_test
+          DB_TEST_USERNAME: sports
+          DB_TEST_PASSWORD: sports
+
+          REDIS_TEST_HOST: localhost
+          REDIS_TEST_PORT: 6379
+
+          RABBITMQ_TEST_HOST: localhost
+          RABBITMQ_TEST_PORT: 5672
+          RABBITMQ_TEST_USERNAME: sports
+          RABBITMQ_TEST_PASSWORD: sports
+          RABBITMQ_TEST_VIRTUAL_HOST: /
+
+        run: ./mvnw -B clean verify

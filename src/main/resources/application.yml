@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: sports-booking
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+  jpa:
+    open-in-view: false
+
+server:
+  port: ${SERVER_PORT:8080}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  jwt:
+    secret-key: ${JWT_SECRET_ACCESS_TOKEN}
+    refresh-secret-key: ${JWT_SECRET_REFRESH_TOKEN}
+    expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
+    refresh-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+
+  sendgrid:
+    enabled: ${SENDGRID_ENABLED:false}
+    api-key: ${SENDGRID_API_KEY:}
+    from-email: ${SENDGRID_FROM_EMAIL:}
+    from-name: ${SENDGRID_FROM_NAME:Sports Booking}
+
+  storage:
+    provider: ${STORAGE_PROVIDER:r2}
+
+    s3:
+      region: ${AWS_REGION:ap-southeast-1}
+      bucket-name: ${S3_BUCKET_NAME:}
+      access-key: ${AWS_ACCESS_KEY_ID:}
+      secret-key: ${AWS_SECRET_ACCESS_KEY:}
+
+    r2:
+      account-id: ${R2_ACCOUNT_ID:}
+      endpoint: ${R2_ENDPOINT:}
+      bucket-name: ${R2_BUCKET_NAME:}
+      access-key: ${R2_ACCESS_KEY_ID:}
+      secret-key: ${R2_SECRET_ACCESS_KEY:}
+      public-url: ${R2_PUBLIC_URL:}
