@@ -88,7 +88,7 @@ VALUES
      'ROLE_MANAGE',
      'Quản lý vai trò và quyền',
      'Tạo, sửa và cấu hình vai trò cùng quyền hạn',
-     'IDENTITY'),
+     'IDENTITY')
 
     ON CONFLICT (code) DO NOTHING;
 
