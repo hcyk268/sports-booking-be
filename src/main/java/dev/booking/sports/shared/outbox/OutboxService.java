@@ -5,8 +5,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,7 +32,7 @@ public class OutboxService {
 		try {
 			return objectMapper.writeValueAsString(payload);
 		}
-		catch (JsonProcessingException exception) {
+		catch (JacksonException exception) {
 			throw new IllegalArgumentException("Outbox payload is not serializable", exception);
 		}
 	}
