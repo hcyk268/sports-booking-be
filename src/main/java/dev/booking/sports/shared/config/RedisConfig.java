@@ -34,25 +34,23 @@ public class RedisConfig {
 				.build();
 	}
 
-    @Bean
-    public RedisTemplate<String, Object> redisTemplate(
-            RedisConnectionFactory connectionFactory
-    ) {
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
+	@Bean
+	public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+		RedisTemplate<String, Object> template = new RedisTemplate<>();
 
-        StringRedisSerializer stringSerializer = new StringRedisSerializer();
-        RedisSerializer<Object> jsonSerializer = RedisSerializer.json();
+		StringRedisSerializer stringSerializer = new StringRedisSerializer();
+		RedisSerializer<Object> jsonSerializer = RedisSerializer.json();
 
-        template.setConnectionFactory(connectionFactory);
+		template.setConnectionFactory(connectionFactory);
 
-        template.setKeySerializer(stringSerializer);
-        template.setHashKeySerializer(stringSerializer);
+		template.setKeySerializer(stringSerializer);
+		template.setHashKeySerializer(stringSerializer);
 
-        template.setValueSerializer(jsonSerializer);
-        template.setHashValueSerializer(jsonSerializer);
+		template.setValueSerializer(jsonSerializer);
+		template.setHashValueSerializer(jsonSerializer);
 
-        template.setDefaultSerializer(jsonSerializer);
+		template.setDefaultSerializer(jsonSerializer);
 
-        return template;
-    }
+		return template;
+	}
 }

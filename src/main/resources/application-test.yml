@@ -4,40 +4,55 @@ spring:
       on-profile: test
 
   datasource:
-    url: jdbc:postgresql://${DB_TEST_HOST:localhost}:${DB_TEST_PORT:5432}/${DB_TEST_NAME:sports_booking_test}
-    username: ${DB_TEST_USERNAME:sports}
-    password: ${DB_TEST_PASSWORD:sports}
+    url: jdbc:postgresql://${DB_TEST_HOST:${DB_HOST:localhost}}:${DB_TEST_PORT:${DB_PORT:5432}}/${DB_TEST_NAME:sports_booking_test}
+    username: ${DB_TEST_USERNAME:${DB_USERNAME:sports}}
+    password: ${DB_TEST_PASSWORD:${DB_PASSWORD:sports}}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
 
     show-sql: false
     open-in-view: false
 
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
 
   data:
     redis:
-      host: ${REDIS_TEST_HOST:localhost}
-      port: ${REDIS_TEST_PORT:6379}
+      host: ${REDIS_TEST_HOST:${REDIS_HOST:localhost}}
+      port: ${REDIS_TEST_PORT:${REDIS_PORT:6379}}
       database: ${REDIS_TEST_DATABASE:1}
-      username: ${REDIS_TEST_USERNAME:}
-      password: ${REDIS_TEST_PASSWORD:}
+      username: ${REDIS_TEST_USERNAME:${REDIS_USERNAME:}}
+      password: ${REDIS_TEST_PASSWORD:${REDIS_PASSWORD:}}
       timeout: 3s
 
   rabbitmq:
-    host: ${RABBITMQ_TEST_HOST:localhost}
-    port: ${RABBITMQ_TEST_PORT:5672}
-    username: ${RABBITMQ_TEST_USERNAME:sports}
-    password: ${RABBITMQ_TEST_PASSWORD:sports}
-    virtual-host: ${RABBITMQ_TEST_VIRTUAL_HOST:/}
+    host: ${RABBITMQ_TEST_HOST:${RABBITMQ_HOST:localhost}}
+    port: ${RABBITMQ_TEST_PORT:${RABBITMQ_PORT:5672}}
+    username: ${RABBITMQ_TEST_USERNAME:${RABBITMQ_USERNAME:sports}}
+    password: ${RABBITMQ_TEST_PASSWORD:${RABBITMQ_PASSWORD:sports}}
+    virtual-host: ${RABBITMQ_TEST_VIRTUAL_HOST:${RABBITMQ_VIRTUAL_HOST:/}}
 
     listener:
       simple:
         auto-startup: false
+
+app:
+  outbox:
+    relay-enabled: false
+
+  jwt:
+    secret-key: test-access-token-secret-key-sports-booking-hs256-0123456789
+    refresh-secret-key: test-refresh-token-secret-key-sports-booking-hs256-9876543210
+
+  sendgrid:
+    enabled: false
+
+  frontend:
+    base-url: http://localhost:3000
 
 logging:
   level:

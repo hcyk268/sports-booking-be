@@ -6,24 +6,22 @@ import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-
 @Configuration
 public class RabbitMQConfig {
 
-    @Bean
-    public JacksonJsonMessageConverter rabbitMessageConverter() {
-        DefaultClassMapper classMapper = new DefaultClassMapper();
-        classMapper.setTrustedPackages("dev.booking.sports");
+	@Bean
+	public JacksonJsonMessageConverter rabbitMessageConverter() {
+		DefaultClassMapper classMapper = new DefaultClassMapper();
+		classMapper.setTrustedPackages("dev.booking.sports");
 
-        JacksonJsonMessageConverter converter =
-                new JacksonJsonMessageConverter();
-        converter.setClassMapper(classMapper);
+		JacksonJsonMessageConverter converter = new JacksonJsonMessageConverter();
+		converter.setClassMapper(classMapper);
 
-        return converter;
-    }
-    
-    @Bean
-    public ConnectionNameStrategy rabbitConnectionName() {
-        return connectionFactory -> "sports-booking-api";
-    }
+		return converter;
+	}
+
+	@Bean
+	public ConnectionNameStrategy rabbitConnectionName() {
+		return connectionFactory -> "sports-booking-api";
+	}
 }
