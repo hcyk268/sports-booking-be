@@ -49,7 +49,9 @@ app:
     refresh-secret-key: test-refresh-token-secret-key-sports-booking-hs256-9876543210
 
   sendgrid:
-    enabled: false
+    api-key: test-sendgrid-api-key-not-used-in-tests
+    from-email: noreply@test.sports-booking.local
+    from-name: Sports Booking Test
 
   frontend:
     base-url: http://localhost:3000
