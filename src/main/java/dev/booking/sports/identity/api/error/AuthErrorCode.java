@@ -35,7 +35,13 @@ public enum AuthErrorCode implements ErrorCode {
 	USER_ALREADY_LOCKED(HttpStatus.CONFLICT, "Account is already locked"),
 	USER_NOT_LOCKED(HttpStatus.CONFLICT, "Account is not locked"),
 	USER_ALREADY_DISABLED(HttpStatus.CONFLICT, "Account is already disabled"),
-	CANNOT_MODIFY_SELF(HttpStatus.BAD_REQUEST, "You cannot perform this action on your own account");
+	CANNOT_MODIFY_SELF(HttpStatus.BAD_REQUEST, "You cannot perform this action on your own account"),
+
+	PERMISSION_NOT_FOUND(HttpStatus.BAD_REQUEST, "One or more permissions do not exist"),
+	ROLE_PERMISSION_CHANGE_NOT_ALLOWED(HttpStatus.FORBIDDEN, "Permissions for this role cannot be changed"),
+	ADMIN_PERMISSIONS_INSUFFICIENT(HttpStatus.BAD_REQUEST, "ADMIN role must retain all required permissions"),
+	ROLE_PERMISSION_CHANGE_PENDING_NOT_FOUND(HttpStatus.BAD_REQUEST, "No pending role permission change was found or it has expired"),
+	ROLE_PERMISSION_CHANGE_MISMATCH(HttpStatus.BAD_REQUEST, "Permission codes do not match the pending change request");
 
 	private final HttpStatus status;
 	private final String defaultMessage;

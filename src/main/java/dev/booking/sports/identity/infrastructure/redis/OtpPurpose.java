@@ -4,7 +4,9 @@ public enum OtpPurpose {
 
 	PASSWORD_RESET("reset"),
 
-	PASSWORD_CHANGE("change");
+	PASSWORD_CHANGE("change"),
+
+	ROLE_PERMISSION_CHANGE("role-perm");
 
 	private final String segment;
 

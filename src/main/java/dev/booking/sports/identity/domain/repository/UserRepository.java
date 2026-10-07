@@ -1,5 +1,6 @@
 package dev.booking.sports.identity.domain.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,4 +53,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			WHERE (:status IS NULL OR u.status = :status)
 			""")
 	Page<User> findAllPaged(@Param("status") UserStatus status, Pageable pageable);
+
+	@Query("""
+			SELECT DISTINCT u FROM User u
+			JOIN u.userRoles ur
+			JOIN ur.role r
+			WHERE r.code = :roleCode
+			""")
+	List<User> findAllByRoleCode(@Param("roleCode") String roleCode);
 }

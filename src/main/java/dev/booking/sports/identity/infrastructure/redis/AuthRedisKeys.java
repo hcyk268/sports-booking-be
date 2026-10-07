@@ -29,6 +29,17 @@ public final class AuthRedisKeys {
 	}
 
 	public static String otp(OtpPurpose purpose, UUID userId) {
-		return "auth:otp:" + purpose.segment() + ":" + userId;
+		return otp(purpose, userId, null);
+	}
+
+	public static String otp(OtpPurpose purpose, UUID userId, String scope) {
+		if (scope == null || scope.isBlank()) {
+			return "auth:otp:" + purpose.segment() + ":" + userId;
+		}
+		return "auth:otp:" + purpose.segment() + ":" + userId + ":" + scope;
+	}
+
+	public static String rolePermissionChangePending(UUID actorUserId, String roleCode) {
+		return "auth:rbac-pending:" + actorUserId + ":" + roleCode;
 	}
 }

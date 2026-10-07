@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,21 +50,22 @@ class OtpServiceTest {
 		verify(otpStore).issue(
 				eq(OtpPurpose.PASSWORD_RESET),
 				eq(USER_ID),
+				isNull(),
 				eq(TokenHasher.sha256Hex(USER_ID + ":" + otp)),
 				eq(Duration.ofMinutes(10)));
 	}
 
 	@Test
 	void verify_mapsStoreResultsToErrorCodes() {
-		when(otpStore.verify(any(), any(), any(), eq(5)))
+		when(otpStore.verify(any(), any(), any(), any(), eq(5)))
 				.thenReturn(OtpStore.VerificationResult.NOT_FOUND);
 		assertApiError(() -> otpService.verify(OtpPurpose.PASSWORD_RESET, USER_ID, "000000"), AuthErrorCode.OTP_NOT_FOUND);
 
-		when(otpStore.verify(any(), any(), any(), eq(5)))
+		when(otpStore.verify(any(), any(), any(), any(), eq(5)))
 				.thenReturn(OtpStore.VerificationResult.INVALID);
 		assertApiError(() -> otpService.verify(OtpPurpose.PASSWORD_RESET, USER_ID, "000000"), AuthErrorCode.OTP_INVALID);
 
-		when(otpStore.verify(any(), any(), any(), eq(5)))
+		when(otpStore.verify(any(), any(), any(), any(), eq(5)))
 				.thenReturn(OtpStore.VerificationResult.TOO_MANY_ATTEMPTS);
 		assertApiError(
 				() -> otpService.verify(OtpPurpose.PASSWORD_RESET, USER_ID, "000000"),

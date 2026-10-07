@@ -25,14 +25,22 @@ public class OtpService {
 	private final AuthProperties properties;
 
 	public String issue(OtpPurpose purpose, UUID userId) {
+		return issue(purpose, userId, null);
+	}
+
+	public String issue(OtpPurpose purpose, UUID userId, String scope) {
 		String otp = randomNumericCode(properties.otp().length());
-		otpStore.issue(purpose, userId, hash(userId, otp), properties.otp().ttl());
+		otpStore.issue(purpose, userId, scope, hash(userId, otp), properties.otp().ttl());
 		return otp;
 	}
 
 	public void verify(OtpPurpose purpose, UUID userId, String otp) {
+		verify(purpose, userId, null, otp);
+	}
+
+	public void verify(OtpPurpose purpose, UUID userId, String scope, String otp) {
 		OtpStore.VerificationResult result = otpStore.verify(
-				purpose, userId, hash(userId, otp), properties.otp().maxAttempts());
+				purpose, userId, scope, hash(userId, otp), properties.otp().maxAttempts());
 
 		switch (result) {
 			case OK -> {
@@ -47,10 +55,6 @@ public class OtpService {
 		return properties.otp().ttl();
 	}
 
-	/**
-	 * The user id acts as a salt so a leaked store cannot be attacked with one precomputed table
-	 * covering every possible code.
-	 */
 	private String hash(UUID userId, String otp) {
 		return TokenHasher.sha256Hex(userId + ":" + otp);
 	}

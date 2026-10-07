@@ -2,9 +2,11 @@ package dev.booking.sports.identity.domain.model;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import dev.booking.sports.shared.persistence.CreatableEntity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OneToMany;
@@ -35,6 +37,17 @@ public class Role extends CreatableEntity {
 	@OneToMany(mappedBy = "role")
 	private Set<UserRole> userRoles = new HashSet<>();
 
-	@OneToMany(mappedBy = "role")
+	@OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
 	private Set<RolePermission> rolePermissions = new HashSet<>();
+
+	public void replacePermissions(Set<Permission> permissions) {
+		rolePermissions.clear();
+		permissions.forEach(permission -> rolePermissions.add(RolePermission.of(this, permission)));
+	}
+
+	public Set<String> permissionCodes() {
+		return rolePermissions.stream()
+				.map(rolePermission -> rolePermission.getPermission().getCode())
+				.collect(Collectors.toUnmodifiableSet());
+	}
 }

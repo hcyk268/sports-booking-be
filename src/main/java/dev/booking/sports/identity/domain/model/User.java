@@ -15,7 +15,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -64,6 +63,23 @@ public class User extends BaseEntity {
 		user.fullName = fullName;
 		user.phone = phone;
 		user.status = UserStatus.PENDING_VERIFICATION;
+		return user;
+	}
+
+	public static User createByAdmin(
+			String email,
+			String passwordHash,
+			String fullName,
+			String phone,
+			Instant verifiedAt) {
+
+		User user = new User();
+		user.email = email;
+		user.passwordHash = passwordHash;
+		user.fullName = fullName;
+		user.phone = phone;
+		user.status = UserStatus.ACTIVE;
+		user.emailVerifiedAt = verifiedAt;
 		return user;
 	}
 

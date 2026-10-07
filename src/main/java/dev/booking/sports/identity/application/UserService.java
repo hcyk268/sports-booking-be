@@ -1,5 +1,6 @@
 package dev.booking.sports.identity.application;
 
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -13,8 +14,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import dev.booking.sports.identity.api.dto.request.CreateUserRequest;
 import dev.booking.sports.identity.api.dto.request.ReplaceUserRolesRequest;
 import dev.booking.sports.identity.api.dto.request.UpdateUserProfileRequest;
+import dev.booking.sports.identity.config.FrontendProperties;
+import dev.booking.sports.identity.domain.event.AdminUserProvisionedEvent;
+import dev.booking.sports.identity.domain.event.IdentityOutboxMessageTypes;
 import dev.booking.sports.identity.api.dto.response.UserSummaryResponse;
 import dev.booking.sports.identity.api.error.AuthErrorCode;
 import dev.booking.sports.identity.domain.enums.UserStatus;
@@ -25,6 +30,9 @@ import dev.booking.sports.identity.domain.repository.UserRepository;
 import dev.booking.sports.identity.infrastructure.security.ApplicationUserDetailsService;
 import dev.booking.sports.shared.api.PageResponse;
 import dev.booking.sports.shared.exception.ApiException;
+import dev.booking.sports.shared.outbox.OutboxService;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import lombok.RequiredArgsConstructor;
 
@@ -36,8 +44,47 @@ public class UserService {
 
 	private final UserRepository userRepository;
 	private final RoleRepository roleRepository;
+	private final PasswordEncoder passwordEncoder;
 	private final ApplicationUserDetailsService userDetailsService;
 	private final AuthSessionService sessionService;
+	private final OutboxService outboxService;
+	private final FrontendProperties frontendProperties;
+
+	@Transactional
+	public UserSummaryResponse create(CreateUserRequest request) {
+		String email = EmailNormalizer.normalize(request.email());
+
+		if (userRepository.existsByEmailIgnoreCase(email)) {
+			throw new ApiException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+		}
+
+		String temporaryPassword = RandomPasswordGenerator.generate();
+		Set<Role> roles = resolveRoles(request.roleCodes());
+
+		User user = User.createByAdmin(
+				email,
+				passwordEncoder.encode(temporaryPassword),
+				request.fullName().trim(),
+				request.phone(),
+				Instant.now());
+		roles.forEach(user::assignRole);
+
+		userRepository.save(user);
+
+		outboxService.enqueue(
+				IdentityOutboxMessageTypes.USER_AGGREGATE_TYPE,
+				user.getId(),
+				IdentityOutboxMessageTypes.ADMIN_USER_PROVISIONED,
+				IdentityOutboxMessageTypes.EVENT_VERSION,
+				new AdminUserProvisionedEvent(
+						user.getId(),
+						user.getEmail(),
+						user.getFullName(),
+						temporaryPassword,
+						frontendProperties.loginUrl()));
+
+		return UserSummaryResponse.from(requireUser(user.getId()));
+	}
 
 	@Transactional(readOnly = true)
 	public UserSummaryResponse getMe(UUID userId) {

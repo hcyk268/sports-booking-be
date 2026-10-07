@@ -49,6 +49,7 @@ app:
   frontend:
     base-url: ${APP_FRONTEND_BASE_URL:http://localhost:3000}
     verify-email-path: ${APP_FRONTEND_VERIFY_EMAIL_PATH:/verify-email}
+    login-path: ${APP_FRONTEND_LOGIN_PATH:/login}
 
   auth:
     verification-token-ttl: 24h

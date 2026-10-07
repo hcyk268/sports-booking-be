@@ -55,6 +55,8 @@ app:
 
   frontend:
     base-url: http://localhost:3000
+    verify-email-path: /verify-email
+    login-path: /login
 
 logging:
   level:

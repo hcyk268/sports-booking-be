@@ -40,6 +40,14 @@ public class RolePermission {
 	@Column(name = "assigned_at", nullable = false)
 	private Instant assignedAt;
 
+	static RolePermission of(Role role, Permission permission) {
+		RolePermission rolePermission = new RolePermission();
+		rolePermission.role = role;
+		rolePermission.permission = permission;
+		rolePermission.id = new RolePermissionId(role.getId(), permission.getId());
+		return rolePermission;
+	}
+
 	@PrePersist
 	void onPersist() {
 		if (assignedAt == null) {

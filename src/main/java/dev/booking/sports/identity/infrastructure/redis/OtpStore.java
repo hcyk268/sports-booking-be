@@ -28,14 +28,28 @@ public class OtpStore {
 	}
 
 	public void issue(OtpPurpose purpose, UUID userId, String otpHash, Duration ttl) {
-		String key = AuthRedisKeys.otp(purpose, userId);
+		issue(purpose, userId, null, otpHash, ttl);
+	}
+
+	public void issue(OtpPurpose purpose, UUID userId, String scope, String otpHash, Duration ttl) {
+		String key = AuthRedisKeys.otp(purpose, userId, scope);
 		redis.delete(key);
 		redis.opsForHash().putAll(key, Map.of(FIELD_HASH, otpHash, FIELD_ATTEMPTS, "0"));
 		redis.expire(key, ttl);
 	}
 
 	public VerificationResult verify(OtpPurpose purpose, UUID userId, String otpHash, int maxAttempts) {
-		String key = AuthRedisKeys.otp(purpose, userId);
+		return verify(purpose, userId, null, otpHash, maxAttempts);
+	}
+
+	public VerificationResult verify(
+			OtpPurpose purpose,
+			UUID userId,
+			String scope,
+			String otpHash,
+			int maxAttempts) {
+
+		String key = AuthRedisKeys.otp(purpose, userId, scope);
 		Object storedHash = redis.opsForHash().get(key, FIELD_HASH);
 
 		if (storedHash == null) {
@@ -56,7 +70,11 @@ public class OtpStore {
 	}
 
 	public void discard(OtpPurpose purpose, UUID userId) {
-		redis.delete(AuthRedisKeys.otp(purpose, userId));
+		discard(purpose, userId, null);
+	}
+
+	public void discard(OtpPurpose purpose, UUID userId, String scope) {
+		redis.delete(AuthRedisKeys.otp(purpose, userId, scope));
 	}
 
 	private boolean matches(String storedHash, String candidateHash) {

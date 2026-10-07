@@ -2,6 +2,7 @@ package dev.booking.sports.identity.api.controller;
 
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,8 +13,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.booking.sports.identity.api.dto.request.CreateUserRequest;
 import dev.booking.sports.identity.api.dto.request.ReplaceUserRolesRequest;
 import dev.booking.sports.identity.api.dto.request.UpdateUserProfileRequest;
 import dev.booking.sports.identity.api.dto.response.UserSummaryResponse;
@@ -58,6 +61,17 @@ public class UserController {
 		return ApiResponse.success(
 				userService.updateMe(principal.userId(), request),
 				servletRequest.getRequestURI());
+	}
+
+	@PostMapping
+	@ResponseStatus(HttpStatus.CREATED)
+	@PreAuthorize("hasAuthority('USER_CREATE')")
+	@Operation(summary = "Create a user with roles and email a temporary password (admin)")
+	public ApiResponse<UserSummaryResponse> create(
+			@Valid @RequestBody CreateUserRequest request,
+			HttpServletRequest servletRequest) {
+
+		return ApiResponse.success(userService.create(request), servletRequest.getRequestURI());
 	}
 
 	@GetMapping
