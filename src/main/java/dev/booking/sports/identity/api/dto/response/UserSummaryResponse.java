@@ -10,6 +10,7 @@ public record UserSummaryResponse(
 		UUID id,
 		String email,
 		String fullName,
+		String phone,
 		UserStatus status,
 		Set<String> roles,
 		Set<String> permissions) {
@@ -19,6 +20,7 @@ public record UserSummaryResponse(
 				user.getId(),
 				user.getEmail(),
 				user.getFullName(),
+				user.getPhone(),
 				user.getStatus(),
 				user.roleCodes(),
 				user.permissionCodes());

@@ -27,7 +27,15 @@ public enum AuthErrorCode implements ErrorCode {
 	PASSWORD_REUSED(HttpStatus.BAD_REQUEST, "New password must differ from the current one"),
 
 	AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "Authentication is required"),
-	ACCESS_DENIED(HttpStatus.FORBIDDEN, "You do not have permission to perform this action");
+	ACCESS_DENIED(HttpStatus.FORBIDDEN, "You do not have permission to perform this action"),
+
+	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
+	ROLE_NOT_FOUND(HttpStatus.BAD_REQUEST, "One or more roles do not exist"),
+	NO_FIELDS_TO_UPDATE(HttpStatus.BAD_REQUEST, "At least one field must be provided"),
+	USER_ALREADY_LOCKED(HttpStatus.CONFLICT, "Account is already locked"),
+	USER_NOT_LOCKED(HttpStatus.CONFLICT, "Account is not locked"),
+	USER_ALREADY_DISABLED(HttpStatus.CONFLICT, "Account is already disabled"),
+	CANNOT_MODIFY_SELF(HttpStatus.BAD_REQUEST, "You cannot perform this action on your own account");
 
 	private final HttpStatus status;
 	private final String defaultMessage;

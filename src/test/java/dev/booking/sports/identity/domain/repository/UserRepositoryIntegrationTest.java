@@ -39,7 +39,7 @@ class UserRepositoryIntegrationTest extends BaseIntegrationTest {
 		user.assignRole(customer);
 		user = userRepository.saveAndFlush(user);
 
-		User loaded = userRepository.findByIdWithRoles(user.getId()).orElseThrow();
+		User loaded = userRepository.findByIdWithRolesAndPermissions(user.getId()).orElseThrow();
 
 		assertThat(loaded.roleCodes()).containsExactly("CUSTOMER");
 	}

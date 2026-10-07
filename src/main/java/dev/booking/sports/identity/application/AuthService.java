@@ -68,7 +68,7 @@ public class AuthService {
 		String email = EmailNormalizer.normalize(request.email());
 
 		ApplicationUserDetails userDetails = authenticate(email, request.password());
-		User user = userRepository.findByIdWithRoles(userDetails.userId())
+		User user = userRepository.findByIdWithRolesAndPermissions(userDetails.userId())
 				.orElseThrow(() -> new ApiException(AuthErrorCode.INVALID_CREDENTIALS));
 
 		requireLoginAllowed(user);
@@ -104,7 +104,7 @@ public class AuthService {
 	public TokenResponse refresh(String refreshToken) {
 		AuthSessionService.RefreshOutcome outcome = sessionService.validateRefreshToken(refreshToken);
 
-		User user = userRepository.findByIdWithRoles(outcome.userId())
+		User user = userRepository.findByIdWithRolesAndPermissions(outcome.userId())
 				.orElseThrow(() -> new ApiException(AuthErrorCode.TOKEN_REVOKED));
 		requireLoginAllowed(user);
 

@@ -93,4 +93,21 @@ public class User extends BaseEntity {
 		passwordHash = newPasswordHash;
 		passwordChangedAt = changedAt;
 	}
+
+	public void replaceRoles(Set<Role> roles) {
+		userRoles.clear();
+		roles.forEach(this::assignRole);
+	}
+
+	public void lock() {
+		status = UserStatus.LOCKED;
+	}
+
+	public void unlock() {
+		status = UserStatus.ACTIVE;
+	}
+
+	public void disable() {
+		status = UserStatus.DISABLED;
+	}
 }

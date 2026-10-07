@@ -100,7 +100,7 @@ class AuthServiceTest {
 
 		User pendingUser = User.register("user@example.com", "hash", "Test User", null);
 		pendingUser.setId(USER_ID);
-		when(userRepository.findByIdWithRoles(USER_ID)).thenReturn(Optional.of(pendingUser));
+		when(userRepository.findByIdWithRolesAndPermissions(USER_ID)).thenReturn(Optional.of(pendingUser));
 
 		LoginRequest request = new LoginRequest("user@example.com", "Password1");
 
