@@ -45,6 +45,8 @@ class IdentityEmailOutboxPublicationHandlerTest {
 	void supports_onlyIdentityEmailEvents() {
 		assertThat(handler.supports(IdentityOutboxMessageTypes.EMAIL_VERIFICATION_REQUESTED)).isTrue();
 		assertThat(handler.supports(IdentityOutboxMessageTypes.PASSWORD_CHANGED)).isTrue();
+		assertThat(handler.supports(IdentityOutboxMessageTypes.ADMIN_USER_PROVISIONED)).isTrue();
+		assertThat(handler.supports(IdentityOutboxMessageTypes.ROLE_PERMISSION_CHANGE_OTP_ISSUED)).isTrue();
 		assertThat(handler.supports("booking.created")).isFalse();
 	}
 

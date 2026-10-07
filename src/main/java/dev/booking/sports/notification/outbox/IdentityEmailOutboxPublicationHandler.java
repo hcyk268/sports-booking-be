@@ -6,11 +6,13 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import dev.booking.sports.identity.domain.event.AdminUserProvisionedEvent;
 import dev.booking.sports.identity.domain.event.EmailVerificationRequestedEvent;
 import dev.booking.sports.identity.domain.event.IdentityOutboxMessageTypes;
 import dev.booking.sports.identity.domain.event.PasswordChangeOtpIssuedEvent;
 import dev.booking.sports.identity.domain.event.PasswordChangedEvent;
 import dev.booking.sports.identity.domain.event.PasswordResetOtpIssuedEvent;
+import dev.booking.sports.identity.domain.event.RolePermissionChangeOtpIssuedEvent;
 import dev.booking.sports.notification.service.EmailQueuePublisher;
 import dev.booking.sports.notification.service.EmailTemplateService;
 import dev.booking.sports.notification.service.EmailTemplateService.RenderedEmail;
@@ -31,7 +33,9 @@ public class IdentityEmailOutboxPublicationHandler implements OutboxPublicationH
 		return IdentityOutboxMessageTypes.EMAIL_VERIFICATION_REQUESTED.equals(eventType)
 				|| IdentityOutboxMessageTypes.PASSWORD_RESET_OTP_ISSUED.equals(eventType)
 				|| IdentityOutboxMessageTypes.PASSWORD_CHANGE_OTP_ISSUED.equals(eventType)
-				|| IdentityOutboxMessageTypes.PASSWORD_CHANGED.equals(eventType);
+				|| IdentityOutboxMessageTypes.PASSWORD_CHANGED.equals(eventType)
+				|| IdentityOutboxMessageTypes.ADMIN_USER_PROVISIONED.equals(eventType)
+				|| IdentityOutboxMessageTypes.ROLE_PERMISSION_CHANGE_OTP_ISSUED.equals(eventType);
 	}
 
 	@Override
@@ -58,6 +62,24 @@ public class IdentityEmailOutboxPublicationHandler implements OutboxPublicationH
 				PasswordChangedEvent event = objectMapper.readValue(
 						payloadJson, PasswordChangedEvent.class);
 				yield emailTemplateService.passwordChanged(event.fullName());
+			}
+			case IdentityOutboxMessageTypes.ADMIN_USER_PROVISIONED -> {
+				AdminUserProvisionedEvent event = objectMapper.readValue(
+						payloadJson, AdminUserProvisionedEvent.class);
+				yield emailTemplateService.adminUserProvisioned(
+						event.fullName(),
+						event.email(),
+						event.temporaryPassword(),
+						event.loginUrl());
+			}
+			case IdentityOutboxMessageTypes.ROLE_PERMISSION_CHANGE_OTP_ISSUED -> {
+				RolePermissionChangeOtpIssuedEvent event = objectMapper.readValue(
+						payloadJson, RolePermissionChangeOtpIssuedEvent.class);
+				yield emailTemplateService.rolePermissionChangeOtp(
+						event.fullName(),
+						event.roleCode(),
+						event.otp(),
+						event.ttl());
 			}
 			default -> throw new IllegalStateException("Unsupported event type " + message.getEventType());
 		};

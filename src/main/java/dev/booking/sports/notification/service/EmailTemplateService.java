@@ -16,6 +16,8 @@ public class EmailTemplateService {
 	private static final String PASSWORD_RESET_SUBJECT = "Mã xác thực đặt lại mật khẩu";
 	private static final String PASSWORD_CHANGE_SUBJECT = "Mã xác thực đổi mật khẩu";
 	private static final String PASSWORD_CHANGED_SUBJECT = "Mật khẩu của bạn đã được thay đổi";
+	private static final String ADMIN_USER_PROVISIONED_SUBJECT = "Tài khoản Sports Booking của bạn đã được tạo";
+	private static final String ROLE_PERMISSION_CHANGE_SUBJECT = "Mã xác thực thay đổi quyền vai trò";
 
 	private final TemplateEngine templateEngine;
 
@@ -49,6 +51,31 @@ public class EmailTemplateService {
 		return new RenderedEmail(
 				PASSWORD_CHANGED_SUBJECT,
 				render("email/password-changed", Map.of("fullName", fullName)));
+	}
+
+	public RenderedEmail rolePermissionChangeOtp(String fullName, String roleCode, String otp, Duration ttl) {
+		return new RenderedEmail(
+				ROLE_PERMISSION_CHANGE_SUBJECT,
+				render("email/role-permission-change-otp", Map.of(
+						"fullName", fullName,
+						"roleCode", roleCode,
+						"otp", otp,
+						"ttlMinutes", ttl.toMinutes())));
+	}
+
+	public RenderedEmail adminUserProvisioned(
+			String fullName,
+			String email,
+			String temporaryPassword,
+			String loginUrl) {
+
+		return new RenderedEmail(
+				ADMIN_USER_PROVISIONED_SUBJECT,
+				render("email/admin-user-provisioned", Map.of(
+						"fullName", fullName,
+						"email", email,
+						"temporaryPassword", temporaryPassword,
+						"loginUrl", loginUrl)));
 	}
 
 	private String render(String templateName, Map<String, Object> variables) {
