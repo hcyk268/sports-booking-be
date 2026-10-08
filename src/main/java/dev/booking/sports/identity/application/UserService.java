@@ -187,7 +187,7 @@ public class UserService {
 		if (hasFullName) {
 			String fullName = request.fullName().trim();
 			if (fullName.isEmpty()) {
-				throw new ApiException(AuthErrorCode.NO_FIELDS_TO_UPDATE);
+				throw new ApiException(AuthErrorCode.FULL_NAME_BLANK);
 			}
 			user.setFullName(fullName);
 		}

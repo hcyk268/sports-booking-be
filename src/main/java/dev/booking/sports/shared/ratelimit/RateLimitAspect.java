@@ -16,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 
 @Aspect
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class RateLimitAspect {
 

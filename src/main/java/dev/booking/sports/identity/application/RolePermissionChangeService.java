@@ -41,7 +41,7 @@ public class RolePermissionChangeService {
 	private final AuthSessionService sessionService;
 	private final ApplicationUserDetailsService userDetailsService;
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public RolePermissionChangeRequestResponse requestChange(
 			UUID actorUserId,
 			String roleCode,

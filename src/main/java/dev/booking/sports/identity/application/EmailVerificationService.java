@@ -3,6 +3,7 @@ package dev.booking.sports.identity.application;
 import java.time.Instant;
 import java.util.UUID;
 
+import dev.booking.sports.identity.infrastructure.security.ApplicationUserDetailsService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class EmailVerificationService {
 	private final AuthProperties authProperties;
 	private final FrontendProperties frontendProperties;
 	private final OutboxService outboxService;
+	private final ApplicationUserDetailsService userDetailsService;
 
 	public void sendVerificationLink(User user) {
 		String token = TokenHasher.randomUrlSafeToken();
@@ -58,6 +60,8 @@ public class EmailVerificationService {
 		if (user.getStatus() == UserStatus.PENDING_VERIFICATION) {
 			user.activate(Instant.now());
 		}
+
+		userDetailsService.evict(user.getEmail());
 	}
 
 	@Transactional

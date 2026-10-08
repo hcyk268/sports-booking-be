@@ -57,11 +57,11 @@ public class PasswordChangeService {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new ApiException(AuthErrorCode.TOKEN_REVOKED));
 
-		otpService.verify(OtpPurpose.PASSWORD_CHANGE, userId, request.otp());
-
 		if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
 			throw new ApiException(AuthErrorCode.PASSWORD_REUSED);
 		}
+
+		otpService.verify(OtpPurpose.PASSWORD_CHANGE, userId, request.otp());
 
 		user.changePassword(passwordEncoder.encode(request.newPassword()), Instant.now());
 		userDetailsService.evict(user.getEmail());

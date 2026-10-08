@@ -62,4 +62,4 @@ logging:
     root: INFO
     dev.booking.sports: DEBUG
     org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: INFO

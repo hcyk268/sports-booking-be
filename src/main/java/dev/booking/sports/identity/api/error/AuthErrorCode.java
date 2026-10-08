@@ -32,6 +32,7 @@ public enum AuthErrorCode implements ErrorCode {
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
 	ROLE_NOT_FOUND(HttpStatus.BAD_REQUEST, "One or more roles do not exist"),
 	NO_FIELDS_TO_UPDATE(HttpStatus.BAD_REQUEST, "At least one field must be provided"),
+	FULL_NAME_BLANK(HttpStatus.BAD_REQUEST, "Full name cannot be blank"),
 	USER_ALREADY_LOCKED(HttpStatus.CONFLICT, "Account is already locked"),
 	USER_NOT_LOCKED(HttpStatus.CONFLICT, "Account is not locked"),
 	USER_ALREADY_DISABLED(HttpStatus.CONFLICT, "Account is already disabled"),

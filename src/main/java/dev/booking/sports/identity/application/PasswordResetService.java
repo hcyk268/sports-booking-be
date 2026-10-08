@@ -57,11 +57,11 @@ public class PasswordResetService {
 		User user = userRepository.findByEmailIgnoreCase(email)
 				.orElseThrow(() -> new ApiException(AuthErrorCode.OTP_NOT_FOUND));
 
-		otpService.verify(OtpPurpose.PASSWORD_RESET, user.getId(), request.otp());
-
 		if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
 			throw new ApiException(AuthErrorCode.PASSWORD_REUSED);
 		}
+
+		otpService.verify(OtpPurpose.PASSWORD_RESET, user.getId(), request.otp());
 
 		user.changePassword(passwordEncoder.encode(request.newPassword()), Instant.now());
 		userDetailsService.evict(user.getEmail());
