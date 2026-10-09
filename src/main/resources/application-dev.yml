@@ -42,8 +42,14 @@ spring:
     password: ${RABBITMQ_PASSWORD:sports}
     virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
 
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
     ssl:
       enabled: ${RABBITMQ_SSL_ENABLED:false}
+
+    template:
+      mandatory: true
 
     listener:
       simple:

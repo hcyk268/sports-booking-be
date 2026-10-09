@@ -71,6 +71,6 @@ class IdentityEmailOutboxPublicationHandlerTest {
 
 		handler.publish(outbox);
 
-		verify(emailQueuePublisher).publish("user@example.com", "Minh Anh", rendered);
+		verify(emailQueuePublisher).publish(outbox.getEventId(), "user@example.com", "Minh Anh", rendered);
 	}
 }

@@ -10,13 +10,13 @@ import org.springframework.stereotype.Component;
 import com.rabbitmq.client.Channel;
 
 import dev.booking.sports.notification.config.NotificationRabbitConfig;
+import dev.booking.sports.notification.delivery.EmailDeliveryDedupService;
 import dev.booking.sports.notification.email.EmailDeliveryException;
-import dev.booking.sports.notification.email.EmailMessage;
+import dev.booking.sports.notification.email.EmailQueueMessage;
 import dev.booking.sports.notification.email.EmailSender;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 
 @Slf4j
 @Component
@@ -24,19 +24,35 @@ import lombok.extern.slf4j.Slf4j;
 public class EmailConsumer {
 
 	private final EmailSender emailSender;
+	private final EmailDeliveryDedupService deliveryDedupService;
 
 	@RabbitListener(queues = NotificationRabbitConfig.EMAIL_QUEUE)
 	public void consume(
-			EmailMessage message,
+			EmailQueueMessage message,
 			Channel channel,
 			@Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
 
+		if (!deliveryDedupService.tryAcquire(message.outboxEventId())) {
+			log.info(
+					"Skipping duplicate email delivery for outbox event {} ({})",
+					message.outboxEventId(),
+					message.email().subject());
+			channel.basicAck(deliveryTag, false);
+			return;
+		}
+
 		try {
-			emailSender.send(message);
+			emailSender.send(message.email());
 			channel.basicAck(deliveryTag, false);
 		}
 		catch (EmailDeliveryException exception) {
-			log.error("Dead-lettering email '{}' to {}", message.subject(), message.to(), exception);
+			deliveryDedupService.release(message.outboxEventId());
+			log.error(
+					"Dead-lettering email '{}' to {} for outbox event {}",
+					message.email().subject(),
+					message.email().to(),
+					message.outboxEventId(),
+					exception);
 			channel.basicNack(deliveryTag, false, false);
 		}
 	}

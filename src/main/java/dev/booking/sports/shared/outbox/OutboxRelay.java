@@ -4,26 +4,49 @@ import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.booking.sports.shared.config.OutboxProperties;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OutboxRelay {
 
 	private final OutboxRepository repository;
 	private final List<OutboxPublicationHandler> handlers;
 	private final OutboxProperties properties;
+	private final TransactionTemplate transactionTemplate;
 
-	@Transactional
+	public OutboxRelay(
+			OutboxRepository repository,
+			List<OutboxPublicationHandler> handlers,
+			OutboxProperties properties,
+			PlatformTransactionManager transactionManager) {
+
+		this.repository = repository;
+		this.handlers = handlers;
+		this.properties = properties;
+		this.transactionTemplate = new TransactionTemplate(transactionManager);
+	}
+
 	public void dispatchPendingMessages() {
-		for (OutboxEvent message : repository.lockPendingBatch(properties.batchSize())) {
-			dispatch(message);
+		for (int index = 0; index < properties.batchSize(); index++) {
+			Boolean dispatched = transactionTemplate.execute(status -> {
+				List<OutboxEvent> batch = repository.lockPendingBatch(1);
+				if (batch.isEmpty()) {
+					return false;
+				}
+
+				dispatch(batch.getFirst());
+				return true;
+			});
+
+			if (!Boolean.TRUE.equals(dispatched)) {
+				break;
+			}
 		}
 	}
 

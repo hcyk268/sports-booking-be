@@ -36,6 +36,12 @@ spring:
     password: ${RABBITMQ_TEST_PASSWORD:${RABBITMQ_PASSWORD:sports}}
     virtual-host: ${RABBITMQ_TEST_VIRTUAL_HOST:${RABBITMQ_VIRTUAL_HOST:/}}
 
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+    template:
+      mandatory: true
+
     listener:
       simple:
         auto-startup: false

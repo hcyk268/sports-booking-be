@@ -3,6 +3,7 @@ package dev.booking.sports.notification.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,11 +12,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import dev.booking.sports.notification.config.NotificationRabbitConfig;
 import dev.booking.sports.notification.email.EmailMessage;
+import dev.booking.sports.notification.email.EmailQueueMessage;
 import dev.booking.sports.support.BaseIntegrationTest;
 import dev.booking.sports.support.IntegrationTest;
 
 @IntegrationTest
 class EmailQueuePublisherIntegrationTest extends BaseIntegrationTest {
+
+	private static final UUID OUTBOX_EVENT_ID = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
 	@Autowired
 	private EmailQueuePublisher emailQueuePublisher;
@@ -31,12 +35,14 @@ class EmailQueuePublisherIntegrationTest extends BaseIntegrationTest {
 	}
 
 	@Test
-	void publish_deliversEmailMessageToQueue() {
-		EmailMessage outgoing = new EmailMessage(
-				"queue-it@example.com",
-				"Queue IT",
-				"Integration subject",
-				"<p>integration body</p>");
+	void publish_deliversEmailQueueMessageToQueue() {
+		EmailQueueMessage outgoing = new EmailQueueMessage(
+				OUTBOX_EVENT_ID,
+				new EmailMessage(
+						"queue-it@example.com",
+						"Queue IT",
+						"Integration subject",
+						"<p>integration body</p>"));
 
 		emailQueuePublisher.publish(outgoing);
 
@@ -44,11 +50,12 @@ class EmailQueuePublisherIntegrationTest extends BaseIntegrationTest {
 				NotificationRabbitConfig.EMAIL_QUEUE,
 				Duration.ofSeconds(5).toMillis());
 
-		assertThat(received).isInstanceOf(EmailMessage.class);
-		EmailMessage email = (EmailMessage) received;
-		assertThat(email.to()).isEqualTo("queue-it@example.com");
-		assertThat(email.toName()).isEqualTo("Queue IT");
-		assertThat(email.subject()).isEqualTo("Integration subject");
-		assertThat(email.htmlBody()).contains("integration body");
+		assertThat(received).isInstanceOf(EmailQueueMessage.class);
+		EmailQueueMessage email = (EmailQueueMessage) received;
+		assertThat(email.outboxEventId()).isEqualTo(OUTBOX_EVENT_ID);
+		assertThat(email.email().to()).isEqualTo("queue-it@example.com");
+		assertThat(email.email().toName()).isEqualTo("Queue IT");
+		assertThat(email.email().subject()).isEqualTo("Integration subject");
+		assertThat(email.email().htmlBody()).contains("integration body");
 	}
 }

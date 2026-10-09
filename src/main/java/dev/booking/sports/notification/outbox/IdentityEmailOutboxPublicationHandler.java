@@ -87,6 +87,6 @@ public class IdentityEmailOutboxPublicationHandler implements OutboxPublicationH
 		JsonNode payload = objectMapper.readTree(payloadJson);
 		String email = payload.required("email").asString();
 		String fullName = payload.required("fullName").asString();
-		emailQueuePublisher.publish(email, fullName, rendered);
+		emailQueuePublisher.publish(message.getEventId(), email, fullName, rendered);
 	}
 }

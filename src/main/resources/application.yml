@@ -40,6 +40,9 @@ app:
     max-retries: 10
     relay-enabled: true
 
+  rabbitmq:
+    publisher-confirm-timeout: 5s
+
   jwt:
     secret-key: ${JWT_SECRET_ACCESS_TOKEN}
     refresh-secret-key: ${JWT_SECRET_REFRESH_TOKEN}
