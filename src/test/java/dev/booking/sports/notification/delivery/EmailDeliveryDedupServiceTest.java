@@ -13,23 +13,25 @@ import dev.booking.sports.support.IntegrationTest;
 @IntegrationTest
 class EmailDeliveryDedupServiceTest extends BaseIntegrationTest {
 
-	private static final UUID OUTBOX_EVENT_ID = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
-
 	@Autowired
 	private EmailDeliveryDedupService deliveryDedupService;
 
 	@Test
 	void tryAcquire_allowsFirstDeliveryAndBlocksDuplicates() {
-		assertThat(deliveryDedupService.tryAcquire(OUTBOX_EVENT_ID)).isTrue();
-		assertThat(deliveryDedupService.tryAcquire(OUTBOX_EVENT_ID)).isFalse();
+		UUID outboxEventId = UUID.randomUUID();
+
+		assertThat(deliveryDedupService.tryAcquire(outboxEventId)).isTrue();
+		assertThat(deliveryDedupService.tryAcquire(outboxEventId)).isFalse();
 	}
 
 	@Test
 	void release_allowsAnotherDeliveryAttempt() {
-		assertThat(deliveryDedupService.tryAcquire(OUTBOX_EVENT_ID)).isTrue();
+		UUID outboxEventId = UUID.randomUUID();
 
-		deliveryDedupService.release(OUTBOX_EVENT_ID);
+		assertThat(deliveryDedupService.tryAcquire(outboxEventId)).isTrue();
 
-		assertThat(deliveryDedupService.tryAcquire(OUTBOX_EVENT_ID)).isTrue();
+		deliveryDedupService.release(outboxEventId);
+
+		assertThat(deliveryDedupService.tryAcquire(outboxEventId)).isTrue();
 	}
 }
