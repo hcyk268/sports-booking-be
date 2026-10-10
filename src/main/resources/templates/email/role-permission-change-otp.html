@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/fragments/layout :: layout(~{::main})}">
+<th:block th:fragment="main">
+	<p th:text="|Xin chao ${fullName},|">Xin chao,</p>
+	<p>
+		Ma xac thuc de cap nhat quyen cho vai tro
+		<strong th:text="${roleCode}">ROLE</strong>
+		la:
+		<strong th:text="${otp}" style="font-size:20px;letter-spacing:2px;">000000</strong>
+	</p>
+	<p th:text="|Ma het han sau ${ttlMinutes} phut.|">Ma het han sau N phut.</p>
+</th:block>
+</html>
