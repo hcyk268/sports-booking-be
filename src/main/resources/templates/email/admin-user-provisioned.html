@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/fragments/layout :: layout(~{::main})}">
+<th:block th:fragment="main">
+	<p th:text="|Xin chao ${fullName},|">Xin chao,</p>
+	<p>Quan tri vien da tao tai khoan Sports Booking cho ban. Dang nhap bang email va mat khau tam thoi duoi day:</p>
+	<p style="margin:16px 0;font-size:15px;">
+		<strong>Email:</strong> <span th:text="${email}">email</span><br/>
+		<strong>Mat khau tam thoi:</strong> <span th:text="${temporaryPassword}" style="font-family:monospace;">password</span>
+	</p>
+	<p style="margin:24px 0;">
+		<a th:href="${loginUrl}"
+		   style="display:inline-block;background-color:#0f766e;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:bold;">
+			Dang nhap
+		</a>
+	</p>
+	<p style="font-size:14px;color:#52525b;">Vui long doi mat khau ngay sau khi dang nhap lan dau.</p>
+</th:block>
+</html>

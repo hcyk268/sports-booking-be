@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/fragments/layout :: layout(~{::main})}">
+<th:block th:fragment="main">
+	<p th:text="|Xin chao ${fullName},|">Xin chao,</p>
+	<p>Nhan vao lien ket duoi day de kich hoat tai khoan Sports Booking cua ban:</p>
+	<p style="margin:24px 0;">
+		<a th:href="${verificationUrl}"
+		   style="display:inline-block;background-color:#0f766e;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:bold;">
+			Kich hoat tai khoan
+		</a>
+	</p>
+	<p style="font-size:14px;color:#52525b;">Lien ket chi dung duoc mot lan va se het han sau 24 gio.</p>
+</th:block>
+</html>

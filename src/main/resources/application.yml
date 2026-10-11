@@ -5,11 +5,6 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
-  servlet:
-    multipart:
-      max-file-size: 10MB
-      max-request-size: 20MB
-
   jpa:
     open-in-view: false
 
@@ -36,27 +31,43 @@ management:
       show-details: never
 
 app:
+  cache:
+    user-details-ttl: ${USER_DETAILS_CACHE_TTL:5m}
+
+  outbox:
+    poll-interval: 1s
+    batch-size: 25
+    max-retries: 10
+    relay-enabled: true
+
+  rabbitmq:
+    publisher-confirm-timeout: 5s
+
   jwt:
     secret-key: ${JWT_SECRET_ACCESS_TOKEN}
     refresh-secret-key: ${JWT_SECRET_REFRESH_TOKEN}
     expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
     refresh-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
 
+  frontend:
+    base-url: ${APP_FRONTEND_BASE_URL:http://localhost:3000}
+    verify-email-path: ${APP_FRONTEND_VERIFY_EMAIL_PATH:/verify-email}
+    login-path: ${APP_FRONTEND_LOGIN_PATH:/login}
+
+  auth:
+    verification-token-ttl: 24h
+
+    otp:
+      length: 6
+      ttl: 10m
+      max-attempts: 5
+
   sendgrid:
-    enabled: ${SENDGRID_ENABLED:false}
     api-key: ${SENDGRID_API_KEY:}
     from-email: ${SENDGRID_FROM_EMAIL:}
     from-name: ${SENDGRID_FROM_NAME:Sports Booking}
 
   storage:
-    provider: ${STORAGE_PROVIDER:r2}
-
-    s3:
-      region: ${AWS_REGION:ap-southeast-1}
-      bucket-name: ${S3_BUCKET_NAME:}
-      access-key: ${AWS_ACCESS_KEY_ID:}
-      secret-key: ${AWS_SECRET_ACCESS_KEY:}
-
     r2:
       account-id: ${R2_ACCOUNT_ID:}
       endpoint: ${R2_ENDPOINT:}

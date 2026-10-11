@@ -9,18 +9,19 @@ services:
       - "${DB_PORT:-5432}:5432"
 
     environment:
-      POSTGRES_DB: ${DB_NAME:-sports_booking_dev}
+      POSTGRES_DB: ${DB_NAME:-sports_booking}
       POSTGRES_USER: ${DB_USERNAME:-sports}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-sports}
 
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - sports_postgres:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${DB_USERNAME:-sports} -d ${DB_NAME:-sports_booking_dev}"
+          "pg_isready -U ${DB_USERNAME:-sports} -d ${DB_NAME:-sports_booking}"
         ]
       interval: 10s
       timeout: 5s
@@ -35,6 +36,13 @@ services:
     image: redis:7-alpine
     container_name: sports-booking-redis
     restart: unless-stopped
+
+    command:
+      [
+        "redis-server",
+        "--appendonly", "yes",
+        "--maxmemory-policy", "noeviction"
+      ]
 
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -81,7 +89,7 @@ services:
 
 
 volumes:
-  postgres_data:
+  sports_postgres:
   redis_data:
   rabbitmq_data:
 
