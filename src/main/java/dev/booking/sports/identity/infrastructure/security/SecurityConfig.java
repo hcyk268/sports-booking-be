@@ -81,11 +81,15 @@ public class SecurityConfig {
 				.logout(logout -> logout.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(requests -> requests
-						.requestMatchers(PUBLIC_AUTH_ENDPOINTS).permitAll()
-						.requestMatchers(PUBLIC_DOCS_ENDPOINTS).permitAll()
-						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-						.requestMatchers(HttpMethod.GET, "/api/v1/sports").permitAll()
-						.anyRequest().authenticated())
+				.requestMatchers(PUBLIC_AUTH_ENDPOINTS).permitAll()
+				.requestMatchers(PUBLIC_DOCS_ENDPOINTS).permitAll()
+				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/v1/sports").permitAll()
+				.requestMatchers(
+						HttpMethod.GET,
+						"/api/v1/courts",
+						"/api/v1/courts/{id}").permitAll()
+				.anyRequest().authenticated())
 				.exceptionHandling(handling -> handling
 						.authenticationEntryPoint(authenticationEntryPoint)
 						.accessDeniedHandler(accessDeniedHandler))
