@@ -27,4 +27,9 @@ public interface CourtRepository
     Optional<Court> findByIdAndStatus(
             UUID id,
             CourtStatus status);
+
+    @EntityGraph(attributePaths = "sport")
+    Page<Court> findByOwnerId(
+            UUID ownerId,
+            Pageable pageable);
 }
