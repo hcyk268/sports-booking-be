@@ -32,7 +32,15 @@ public enum CourtErrorCode implements ErrorCode {
 
     INVALID_OPERATING_HOURS(
             HttpStatus.BAD_REQUEST,
-            "Opening time must precede closing time, times must use whole minutes, and at least one slot must fit");
+            "Opening time must precede closing time, times must use whole minutes, and at least one slot must fit"),
+
+    INVALID_PRICE_RULE_TIME(
+            HttpStatus.BAD_REQUEST,
+            "Start time must precede end time and times must use whole minutes"),
+
+    PRICE_RULE_OVERLAP(
+            HttpStatus.BAD_REQUEST,
+            "Price intervals must not overlap within the same day");
 
     private final HttpStatus status;
     private final String message;
