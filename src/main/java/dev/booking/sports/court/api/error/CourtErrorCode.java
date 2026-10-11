@@ -24,7 +24,15 @@ public enum CourtErrorCode implements ErrorCode {
 
     COURT_PUBLISH_NOT_ALLOWED(
             HttpStatus.CONFLICT,
-            "Only draft courts can be published");
+            "Only draft courts can be published"),
+
+    DUPLICATE_OPERATING_DAY(
+            HttpStatus.BAD_REQUEST,
+            "Each day can appear only once"),
+
+    INVALID_OPERATING_HOURS(
+            HttpStatus.BAD_REQUEST,
+            "Opening time must precede closing time, times must use whole minutes, and at least one slot must fit");
 
     private final HttpStatus status;
     private final String message;
