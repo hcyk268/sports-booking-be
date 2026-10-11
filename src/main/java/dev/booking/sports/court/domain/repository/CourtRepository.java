@@ -32,4 +32,9 @@ public interface CourtRepository
     Page<Court> findByOwnerId(
             UUID ownerId,
             Pageable pageable);
+
+    @EntityGraph(attributePaths = "sport")
+    Optional<Court> findByIdAndOwnerId(
+            UUID id,
+            UUID ownerId);
 }

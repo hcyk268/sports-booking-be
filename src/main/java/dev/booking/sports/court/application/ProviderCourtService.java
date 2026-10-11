@@ -55,4 +55,18 @@ public class ProviderCourtService {
                 result.getSize(),
                 result.getTotalElements());
     }
+
+    @Transactional(readOnly = true)
+    public CourtResponse getMyCourt(
+            UUID ownerId,
+            UUID courtId) {
+
+        Court court = courtRepository
+                .findByIdAndOwnerId(courtId, ownerId)
+                .orElseThrow(() ->
+                        new ApiException(
+                                CourtErrorCode.COURT_NOT_FOUND));
+
+        return CourtResponse.from(court);
+    }
 }
