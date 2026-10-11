@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.booking.sports.court.api.dto.request.CreateCourtRequest;
+import dev.booking.sports.court.api.dto.request.UpdateCourtRequest;
 import dev.booking.sports.court.api.dto.response.CourtResponse;
 import dev.booking.sports.court.api.error.CourtErrorCode;
 import dev.booking.sports.court.domain.enums.CourtStatus;
@@ -44,6 +45,37 @@ public class CourtService {
         court.setDescription(request.description() == null
                 ? null : request.description().trim());
         court.setStatus(CourtStatus.DRAFT);
+
+        Court savedCourt = courtRepository.save(court);
+        return CourtResponse.from(savedCourt);
+    }
+
+    @Transactional
+    public CourtResponse updateCourt(
+            UUID ownerId,
+            UUID courtId,
+            UpdateCourtRequest request) {
+
+        Court court = courtRepository.findById(courtId)
+                .orElseThrow(() ->
+                        new ApiException(CourtErrorCode.COURT_NOT_FOUND));
+
+        if (!court.getOwnerId().equals(ownerId)) {
+            throw new ApiException(CourtErrorCode.COURT_ACCESS_DENIED);
+        }
+
+        Sport sport = sportRepository.findById(request.sportId())
+                .orElseThrow(() ->
+                        new ApiException(CourtErrorCode.SPORT_NOT_FOUND));
+
+        court.setSport(sport);
+        court.setName(request.name().trim());
+        court.setAddress(request.address().trim());
+        court.setCity(request.city().trim());
+        court.setWard(request.ward() == null
+                ? null : request.ward().trim());
+        court.setDescription(request.description() == null
+                ? null : request.description().trim());
 
         Court savedCourt = courtRepository.save(court);
         return CourtResponse.from(savedCourt);
