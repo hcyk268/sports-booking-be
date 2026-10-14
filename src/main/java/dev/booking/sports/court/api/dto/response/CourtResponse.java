@@ -1,5 +1,6 @@
 package dev.booking.sports.court.api.dto.response;
 
+import java.util.List;
 import java.util.UUID;
 
 import dev.booking.sports.court.domain.enums.CourtStatus;
@@ -15,7 +16,9 @@ public record CourtResponse(
         String city,
         String ward,
         String description,
-        CourtStatus status) {
+        CourtStatus status,
+        List<String> amenities,
+        String rules) {
 
     public static CourtResponse from(Court court) {
         return new CourtResponse(
@@ -28,6 +31,8 @@ public record CourtResponse(
                 court.getCity(),
                 court.getWard(),
                 court.getDescription(),
-                court.getStatus());
+                court.getStatus(),
+                court.getAmenities().stream().sorted().toList(),
+                court.getRules());
     }
 }

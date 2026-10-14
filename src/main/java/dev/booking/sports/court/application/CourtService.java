@@ -2,6 +2,7 @@ package dev.booking.sports.court.application;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -53,6 +54,7 @@ public class CourtService {
                 ? null : request.ward().trim());
         court.setDescription(request.description() == null
                 ? null : request.description().trim());
+        applyAmenitiesAndRules(court, request.amenities(), request.rules());
         court.setStatus(CourtStatus.DRAFT);
 
         return CourtResponse.from(courtRepository.save(court));
@@ -84,6 +86,7 @@ public class CourtService {
                 ? null : request.ward().trim());
         court.setDescription(request.description() == null
                 ? null : request.description().trim());
+        applyAmenitiesAndRules(court, request.amenities(), request.rules());
 
         return CourtResponse.from(courtRepository.save(court));
     }
@@ -189,6 +192,24 @@ public class CourtService {
 
         court.setStatus(CourtStatus.ACTIVE);
         return CourtResponse.from(courtRepository.save(court));
+    }
+
+    private void applyAmenitiesAndRules(
+            Court court,
+            List<String> amenities,
+            String rules) {
+
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (amenities != null) {
+            amenities.stream()
+                    .map(String::trim)
+                    .forEach(normalized::add);
+        }
+
+        court.getAmenities().clear();
+        court.getAmenities().addAll(normalized);
+        court.setRules(rules == null || rules.isBlank()
+                ? null : rules.trim());
     }
 
     private static String escapeLike(String value) {

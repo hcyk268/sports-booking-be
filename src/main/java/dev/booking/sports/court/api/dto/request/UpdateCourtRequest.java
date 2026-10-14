@@ -1,5 +1,6 @@
 package dev.booking.sports.court.api.dto.request;
 
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.constraints.NotBlank;
@@ -12,5 +13,8 @@ public record UpdateCourtRequest(
         @NotBlank @Size(max = 255) String address,
         @NotBlank @Size(max = 100) String city,
         @Size(max = 100) String ward,
-        String description) {
+        String description,
+        @Size(max = 30)
+        List<@NotBlank @Size(max = 100) String> amenities,
+        @Size(max = 5000) String rules) {
 }
