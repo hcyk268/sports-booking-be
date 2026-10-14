@@ -16,6 +16,7 @@ public record CourtScheduleResponse(
             LocalTime startTime,
             LocalTime endTime,
             BigDecimal totalPrice,
-            boolean priceConfigured) {
+            boolean priceConfigured,
+            boolean closed) {
     }
 }

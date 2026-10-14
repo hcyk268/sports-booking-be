@@ -40,7 +40,19 @@ public enum CourtErrorCode implements ErrorCode {
 
     PRICE_RULE_OVERLAP(
             HttpStatus.BAD_REQUEST,
-            "Price intervals must not overlap within the same day");
+            "Price intervals must not overlap within the same day"),
+
+    INVALID_CLOSURE_TIME(
+            HttpStatus.BAD_REQUEST,
+            "Closure start time must precede end time and times must use whole minutes"),
+
+    COURT_CLOSURE_OVERLAP(
+            HttpStatus.CONFLICT,
+            "This interval overlaps an existing court closure"),
+
+    COURT_CLOSURE_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "Court closure does not exist");
 
     private final HttpStatus status;
     private final String message;

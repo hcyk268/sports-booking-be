@@ -17,8 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.booking.sports.court.api.dto.response.CourtScheduleResponse;
 import dev.booking.sports.court.api.error.CourtErrorCode;
 import dev.booking.sports.court.domain.enums.CourtStatus;
+import dev.booking.sports.court.domain.model.CourtClosure;
 import dev.booking.sports.court.domain.model.CourtOperatingHours;
 import dev.booking.sports.court.domain.model.CourtPriceRule;
+import dev.booking.sports.court.domain.repository.CourtClosureRepository;
 import dev.booking.sports.court.domain.repository.CourtOperatingHoursRepository;
 import dev.booking.sports.court.domain.repository.CourtPriceRuleRepository;
 import dev.booking.sports.court.domain.repository.CourtRepository;
@@ -33,6 +35,7 @@ public class CourtScheduleService {
     private final CourtRepository courtRepository;
     private final CourtOperatingHoursRepository hoursRepository;
     private final CourtPriceRuleRepository priceRuleRepository;
+    private final CourtClosureRepository closureRepository;
 
     @Transactional(
             readOnly = true,
@@ -72,6 +75,10 @@ public class CourtScheduleService {
                         CourtPriceRule::getStartTime))
                 .toList();
 
+        List<CourtClosure> closures = closureRepository
+                .findByCourt_IdAndClosureDateOrderByStartTimeAsc(
+                        courtId, date);
+
         long operatingMinutes = Duration.between(
                 hours.getOpeningTime(),
                 hours.getClosingTime()).toMinutes();
@@ -93,11 +100,17 @@ public class CourtScheduleService {
                     end,
                     prices);
 
+            boolean closed = closures.stream()
+                    .anyMatch(closure ->
+                            start.isBefore(closure.getEndTime())
+                            && end.isAfter(closure.getStartTime()));
+
             slots.add(new CourtScheduleResponse.Slot(
                     start,
                     end,
                     totalPrice,
-                    totalPrice != null));
+                    totalPrice != null,
+                    closed));
         }
 
         return new CourtScheduleResponse(
