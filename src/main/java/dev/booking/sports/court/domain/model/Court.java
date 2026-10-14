@@ -1,5 +1,7 @@
 package dev.booking.sports.court.domain.model;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -18,6 +20,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -61,6 +65,11 @@ public class Court extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String rules;
+
+    @OneToMany(mappedBy = "court", fetch = FetchType.LAZY)
+    @OrderBy("displayOrder ASC, id ASC")
+    @BatchSize(size = 50)
+    private List<CourtImage> images = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

@@ -97,7 +97,9 @@ public class SecurityConfig {
                                 "/api/v1/sports",
                                 "/api/v1/courts",
                                 "/api/v1/courts/{id}",
-                                "/api/v1/courts/{id}/schedule")
+                                "/api/v1/courts/{id}/schedule",
+                                "/api/v1/courts/{id}/images",
+                                "/api/v1/courts/{id}/images/{imageId}/content")
                         .permitAll()
                         .anyRequest()
                         .authenticated())

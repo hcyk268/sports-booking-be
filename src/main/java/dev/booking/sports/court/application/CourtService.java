@@ -57,7 +57,7 @@ public class CourtService {
         applyAmenitiesAndRules(court, request.amenities(), request.rules());
         court.setStatus(CourtStatus.DRAFT);
 
-        return CourtResponse.from(courtRepository.save(court));
+        return CourtResponse.forOwner(courtRepository.save(court));
     }
 
     @Transactional
@@ -88,7 +88,7 @@ public class CourtService {
                 ? null : request.description().trim());
         applyAmenitiesAndRules(court, request.amenities(), request.rules());
 
-        return CourtResponse.from(courtRepository.save(court));
+        return CourtResponse.forOwner(courtRepository.save(court));
     }
 
     @Transactional(readOnly = true)
@@ -182,7 +182,7 @@ public class CourtService {
         }
 
         if (court.getStatus() == CourtStatus.ACTIVE) {
-            return CourtResponse.from(court);
+            return CourtResponse.forOwner(court);
         }
 
         if (court.getStatus() != CourtStatus.DRAFT) {
@@ -191,7 +191,7 @@ public class CourtService {
         }
 
         court.setStatus(CourtStatus.ACTIVE);
-        return CourtResponse.from(courtRepository.save(court));
+        return CourtResponse.forOwner(courtRepository.save(court));
     }
 
     private void applyAmenitiesAndRules(

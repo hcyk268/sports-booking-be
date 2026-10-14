@@ -18,9 +18,24 @@ public record CourtResponse(
         String description,
         CourtStatus status,
         List<String> amenities,
-        String rules) {
+        String rules,
+        List<CourtImageResponse> images,
+        String coverImageUrl) {
 
     public static CourtResponse from(Court court) {
+        return from(court, false);
+    }
+
+    public static CourtResponse forOwner(Court court) {
+        return from(court, true);
+    }
+
+    private static CourtResponse from(Court court, boolean ownerView) {
+        List<CourtImageResponse> gallery = court.getImages().stream()
+                .map(image -> ownerView
+                        ? CourtImageResponse.forOwner(image)
+                        : CourtImageResponse.from(image))
+                .toList();
         return new CourtResponse(
                 court.getId(),
                 court.getOwnerId(),
@@ -33,6 +48,12 @@ public record CourtResponse(
                 court.getDescription(),
                 court.getStatus(),
                 court.getAmenities().stream().sorted().toList(),
-                court.getRules());
+                court.getRules(),
+                gallery,
+                gallery.stream()
+                        .filter(CourtImageResponse::cover)
+                        .findFirst()
+                        .map(CourtImageResponse::url)
+                        .orElse(null));
     }
 }

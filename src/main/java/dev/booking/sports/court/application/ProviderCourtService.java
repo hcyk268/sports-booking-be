@@ -46,7 +46,7 @@ public class ProviderCourtService {
 
         List<CourtResponse> items = result.getContent()
                 .stream()
-                .map(CourtResponse::from)
+                .map(CourtResponse::forOwner)
                 .toList();
 
         return PageResponse.of(
@@ -67,6 +67,6 @@ public class ProviderCourtService {
                         new ApiException(
                                 CourtErrorCode.COURT_NOT_FOUND));
 
-        return CourtResponse.from(court);
+        return CourtResponse.forOwner(court);
     }
 }

@@ -52,7 +52,13 @@ public enum CourtErrorCode implements ErrorCode {
 
     COURT_CLOSURE_NOT_FOUND(
             HttpStatus.NOT_FOUND,
-            "Court closure does not exist");
+            "Court closure does not exist"),
+
+    COURT_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "Court image does not exist"),
+    INVALID_COURT_IMAGE(HttpStatus.BAD_REQUEST, "Upload a valid PNG or JPEG image, at most 6000 pixels per side and 20 million pixels"),
+    COURT_IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "Image must not exceed 5 MiB"),
+    COURT_IMAGE_LIMIT(HttpStatus.CONFLICT, "A court can have at most 10 images"),
+    COURT_IMAGE_STORAGE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Image storage is temporarily unavailable");
 
     private final HttpStatus status;
     private final String message;
