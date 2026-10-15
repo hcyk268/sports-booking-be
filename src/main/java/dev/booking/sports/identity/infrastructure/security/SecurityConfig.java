@@ -96,6 +96,7 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/v1/sports",
                                 "/api/v1/courts",
+                                "/api/v1/courts/search",
                                 "/api/v1/courts/{id}",
                                 "/api/v1/courts/{id}/schedule",
                                 "/api/v1/courts/{id}/images",

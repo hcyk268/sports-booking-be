@@ -20,4 +20,7 @@ public interface CourtClosureRepository
     Optional<CourtClosure> findByIdAndCourt_Id(
             UUID id,
             UUID courtId);
+
+    List<CourtClosure> findByCourt_IdInAndClosureDate(
+            List<UUID> courtIds, LocalDate closureDate);
 }

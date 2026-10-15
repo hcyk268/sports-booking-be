@@ -58,7 +58,11 @@ public enum CourtErrorCode implements ErrorCode {
     INVALID_COURT_IMAGE(HttpStatus.BAD_REQUEST, "Upload a valid PNG or JPEG image, at most 6000 pixels per side and 20 million pixels"),
     COURT_IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "Image must not exceed 5 MiB"),
     COURT_IMAGE_LIMIT(HttpStatus.CONFLICT, "A court can have at most 10 images"),
-    COURT_IMAGE_STORAGE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Image storage is temporarily unavailable");
+    COURT_IMAGE_STORAGE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Image storage is temporarily unavailable"),
+
+    INVALID_COURT_SEARCH_FILTER(
+            HttpStatus.BAD_REQUEST,
+            "Date is required for time or price filters; provide both startTime and endTime in whole minutes, start before end, and a non-negative ordered price range");
 
     private final HttpStatus status;
     private final String message;
