@@ -8,7 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 
 import dev.booking.sports.court.api.dto.response.CourtImageResponse;
 import dev.booking.sports.court.application.CourtImageService;
@@ -37,16 +38,17 @@ public class ProviderCourtImageController {
                 service.listOwned(ownerId, courtId), request.getRequestURI());
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public record AttachImageRequest(@NotNull UUID uploadId) {}
+
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Upload a PNG or JPEG, at most 5 MiB; at most 10 images per court")
-    public ApiResponse<CourtImageResponse> upload(
+    @Operation(summary = "Attach an owned, verified COURT_IMAGE upload; no file bytes are accepted")
+    public ApiResponse<CourtImageResponse> attach(
             @AuthenticationPrincipal(expression = "userId()") UUID ownerId,
             @PathVariable("courtId") UUID courtId,
-            @RequestParam("file") MultipartFile file,
+            @Valid @RequestBody AttachImageRequest body,
             HttpServletRequest request) {
-        return ApiResponse.success(
-                service.upload(ownerId, courtId, file), request.getRequestURI());
+        return ApiResponse.success(service.attach(ownerId, courtId, body.uploadId()), request.getRequestURI());
     }
 
     @PutMapping("/{imageId}/cover")
@@ -68,6 +70,16 @@ public class ProviderCourtImageController {
             @PathVariable("courtId") UUID courtId,
             @PathVariable("imageId") UUID imageId) {
         service.delete(ownerId, courtId, imageId);
+    }
+
+    @GetMapping("/{imageId}/access")
+    @Operation(summary = "Get short-lived read access to an owned image; url is null for legacy local data")
+    public ApiResponse<dev.booking.sports.shared.upload.UploadContracts.ReadAccess> access(
+            @AuthenticationPrincipal(expression = "userId()") UUID ownerId,
+            @PathVariable("courtId") UUID courtId,
+            @PathVariable("imageId") UUID imageId,
+            HttpServletRequest request) {
+        return ApiResponse.success(service.accessOwned(ownerId, courtId, imageId), request.getRequestURI());
     }
 
     @GetMapping("/{imageId}/content")

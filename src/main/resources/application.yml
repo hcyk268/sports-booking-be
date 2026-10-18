@@ -73,6 +73,7 @@ app:
 
   storage:
     r2:
+      enabled: ${R2_ENABLED:false}
       account-id: ${R2_ACCOUNT_ID:}
       endpoint: ${R2_ENDPOINT:}
       bucket-name: ${R2_BUCKET_NAME:}

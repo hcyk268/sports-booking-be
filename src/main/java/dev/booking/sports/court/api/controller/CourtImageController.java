@@ -41,6 +41,10 @@ public class CourtImageController {
     }
 
     static ResponseEntity<byte[]> imageResponse(CourtImageService.ImageContent content) {
+        if (content.redirect() != null) {
+            return ResponseEntity.status(302).location(content.redirect()).cacheControl(CacheControl.noStore())
+                    .header(HttpHeaders.VARY, "Authorization").build();
+        }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(content.contentType()))
                 .contentLength(content.bytes().length)

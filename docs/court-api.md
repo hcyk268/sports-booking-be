@@ -159,7 +159,8 @@ Ví dụ trên rút gọn phần thông tin sân.
 | DELETE | `/api/v1/provider/courts/{id}/closures/{closureId}` | 204 |
 | GET | `/api/v1/provider/courts/{id}/images` | 200 |
 | POST | `/api/v1/provider/courts/{id}/images` | 201 |
-| GET | `/api/v1/provider/courts/{id}/images/{imageId}/content` | 200 |
+| GET | `/api/v1/provider/courts/{id}/images/{imageId}/access` | 200 |
+| GET | `/api/v1/provider/courts/{id}/images/{imageId}/content` | 200 legacy / 302 R2 |
 | PUT | `/api/v1/provider/courts/{id}/images/{imageId}/cover` | 200 |
 | DELETE | `/api/v1/provider/courts/{id}/images/{imageId}` | 204 |
 
@@ -248,37 +249,25 @@ Hủy lịch đóng sẽ mở lại các khung tương ứng nếu không còn k
 
 ### Ảnh sân
 
-POST dùng multipart/form-data, field `file`.
+Upload mới dùng shared upload API và Cloudflare R2. Frontend tải file trực tiếp lên R2;
+backend kiểm tra metadata và dữ liệu ảnh rồi trả uploadId đã xác minh.
+POST /api/v1/provider/courts/{id}/images nhận JSON có uploadId, không nhận multipart.
 
-- PNG/JPEG thực, tối đa 5 MiB; tối đa 10 ảnh/sân.
-- Mỗi cạnh tối đa 6000 pixel, tổng tối đa 20 triệu pixel.
-- Kiểm tra dữ liệu thật và mã hóa lại; không tin phần mở rộng/MIME do client gửi.
-- Ảnh đầu tiên làm ảnh đại diện. Đổi ảnh đại diện bảo đảm mỗi sân tối đa một cover.
-- Xóa cover tự chọn ảnh còn lại đầu tiên; hết ảnh thì coverImageUrl=null.
-- Response ảnh có id, url, cover, displayOrder.
-- URL tương đối với backend; frontend ghép với base URL backend.
-- Preview sân nháp dùng URL provider và Bearer token.
-- Ảnh công khai chỉ đọc được khi sân ACTIVE; xóa ảnh thì URL trả 404.
-- Xóa file sau khi giao dịch database commit; rollback upload có dọn file.
+- PNG/JPEG thực, tối đa 5 MiB; tối đa 10 ảnh/sân; 6000 px/cạnh và 20 triệu pixel.
+- Court quản lý quyền sở hữu, thứ tự, cover; shared quản lý upload/storage và cleanup.
+- Ảnh đầu tiên làm cover, xóa cover chọn ảnh còn lại đầu tiên.
+- API owner /images/{imageId}/access cấp URL đọc có hạn sau khi kiểm tra quyền.
+- /content vẫn tồn tại: 302 tới R2 cho ảnh mới; trả bytes cho ảnh local legacy.
+- Ảnh DRAFT không công khai; bucket luôn private, không lưu URL ký sẵn vào database.
+
+Xem [thiết kế, endpoint, CORS, lifecycle và cấu hình](./shared-r2-uploads.md).
 
 ## 5. Lưu trữ và migration
 
-Flyway V10–V15 tạo sport/court, giờ hoạt động, giá, lịch đóng, tiện ích/nội quy và ảnh.
-Không sửa migration đã áp dụng. Cần phối hợp số migration với các nhánh khác.
-
-Ảnh lưu trên filesystem local; implementation hiện không gọi R2.
-Mặc định:
-
-```text
-<user.home>/.sports-booking/uploads/courts
-```
-
-Có thể cấu hình bằng biến môi trường `APP_STORAGE_LOCAL_DIRECTORY`.
-Khi triển khai, dùng volume bền vững và sao lưu **cả database lẫn thư mục ảnh**.
-Ảnh/file bí mật không nằm trong Git.
-Nếu thao tác filesystem dọn file thất bại hoặc tiến trình dừng đột ngột, cần kiểm tra file mồ côi.
-
-Các giới hạn multipart được cấu hình trong application.yml: file 5MB, request 6MB.
+V10–V15 giữ nguyên. V16 thêm shared_upload_assets và liên kết court_images.upload_id.
+Mọi upload mới dùng R2; R2_ENABLED=false trả 503 cho upload mới, không fallback lưu local.
+Ảnh local cũ vẫn đọc bằng shared LegacyImageReader nếu còn volume cũ. Các file legacy
+không tự được chuyển lên R2; cần chuyển dữ liệu hoặc upload lại trước khi bỏ volume.
 
 ## 6. Kết quả kiểm tra đã thực hiện
 
@@ -290,7 +279,7 @@ Các giới hạn multipart được cấu hình trong application.yml: file 5MB
   đọc công khai, imageId thuộc sân khác và xóa. Script tổng hợp trả ALL CHECKS PASSED.
 - Search: kết hợp toàn bộ bộ lọc, tổng giá nhiều khung, ngày nghỉ, biên lịch đóng,
   thiếu giá, phân trang và request sai. Script tổng hợp trả ALL CHECKS PASSED.
-- Unit: LocalCourtImageStorageTest — 6/6 đạt.
+- Kết quả ảnh local ở trên là trước refactor. UploadServiceTest, ImageVerifierTest, R2ObjectStorageTest và UploadWorkflowIntegrationTest thay cho test local; xem CI của commit mới. R2 thật cần kiểm tra khi có bucket/khóa.
 - Unit: CourtScheduleCalculatorTest — 7/7 đạt.
 - Hai nhóm unit được chạy riêng; chưa coi đây là kết quả toàn bộ clean verify/integration CI.
 

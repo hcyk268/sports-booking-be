@@ -2,6 +2,7 @@ package dev.booking.sports.court.domain.model;
 
 import dev.booking.sports.shared.persistence.BaseEntity;
 import jakarta.persistence.*;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,6 +17,9 @@ public class CourtImage extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "court_id", nullable = false)
     private Court court;
+
+    @Column(name = "upload_id", unique = true)
+    private UUID uploadId;
 
     @Column(name = "storage_key", nullable = false, unique = true, length = 100)
     private String storageKey;
