@@ -252,4 +252,6 @@ The path segment **`v1`** is the stable public version.
 
 - [API overview](./README.md)
 - [Identity module API](./modules/identity-api.md)
-- Error code catalog: [error-codes.md](./error-codes.md) (when published)
+- [Court module API](./modules/court-api.md)
+- [Upload module API](./modules/upload-api.md)
+- [Error codes](./error-codes.md)
