@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import dev.booking.sports.notification.config.NotificationRabbitConfig;
@@ -27,8 +28,13 @@ class EmailQueuePublisherIntegrationTest extends BaseIntegrationTest {
 	@Autowired
 	private RabbitTemplate rabbitTemplate;
 
+	@Autowired
+	private RabbitListenerEndpointRegistry listeners;
+
 	@BeforeEach
 	void drainQueue() {
+		// This test manually receives from the queue: app consumers must not race it.
+		listeners.stop();
 		while (rabbitTemplate.receiveAndConvert(NotificationRabbitConfig.EMAIL_QUEUE, 100) != null) {
 			// discard leftovers from other tests
 		}
