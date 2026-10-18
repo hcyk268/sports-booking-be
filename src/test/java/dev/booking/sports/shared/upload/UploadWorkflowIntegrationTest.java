@@ -10,6 +10,8 @@ import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -31,8 +33,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @IntegrationTest @AutoConfigureMockMvc @Transactional
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class UploadWorkflowIntegrationTest extends BaseIntegrationTest {
     @Autowired MockMvc mvc;
+    @Autowired RabbitListenerEndpointRegistry listeners;
     @Autowired JdbcTemplate jdbc;
     @Autowired CourtRepository courts;
     @Autowired SportRepository sports;
@@ -47,6 +51,8 @@ class UploadWorkflowIntegrationTest extends BaseIntegrationTest {
                 AuthorityUtils.createAuthorityList("ROLE_" + role));
     }
     @BeforeEach void setup() throws Exception {
+        // This extra MockMvc/storage-mock context must never consume another test's email queue.
+        listeners.stop();
         owner = UUID.randomUUID();
         jdbc.update("insert into users(id,email,password_hash,full_name,status) values (?,?,?,?,?)",
                 owner, owner + "@example.com", "unused-test-hash", "Upload Test", "ACTIVE");
