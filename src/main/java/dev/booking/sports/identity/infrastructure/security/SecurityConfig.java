@@ -23,89 +23,122 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 import dev.booking.sports.identity.api.error.AuthErrorCode;
 import dev.booking.sports.shared.exception.ApiException;
 
-
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
-	private static final String[] PUBLIC_AUTH_ENDPOINTS = {
-			"/api/v1/auth/register",
-			"/api/v1/auth/verify-email",
-			"/api/v1/auth/resend-verification",
-			"/api/v1/auth/login",
-			"/api/v1/auth/refresh",
-			"/api/v1/auth/forgot-password",
-			"/api/v1/auth/reset-password"
-	};
+    private static final String[] PUBLIC_AUTH_ENDPOINTS = {
+            "/api/v1/auth/register",
+            "/api/v1/auth/verify-email",
+            "/api/v1/auth/resend-verification",
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh",
+            "/api/v1/auth/forgot-password",
+            "/api/v1/auth/reset-password"
+    };
 
-	private static final String[] PUBLIC_DOCS_ENDPOINTS = {
-			"/v3/api-docs/**",
-			"/swagger-ui/**",
-			"/swagger-ui.html",
-			"/actuator/health",
-			"/actuator/info"
-	};
+    private static final String[] PUBLIC_DOCS_ENDPOINTS = {
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/actuator/health",
+            "/actuator/info"
+    };
 
-	@Bean
-	public PasswordEncoder passwordEncoder() {
-		return new BCryptPasswordEncoder(5);
-	}
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(5);
+    }
 
-	@Bean
-	public DaoAuthenticationProvider daoAuthenticationProvider(
-			UserDetailsService userDetailsService,
-			PasswordEncoder passwordEncoder) {
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider(
+            UserDetailsService userDetailsService,
+            PasswordEncoder passwordEncoder) {
 
-		DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
-		provider.setPasswordEncoder(passwordEncoder);
-		return provider;
-	}
+        DaoAuthenticationProvider provider =
+                new DaoAuthenticationProvider(userDetailsService);
 
-	@Bean
-	public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-		return config.getAuthenticationManager();
-	}
+        provider.setPasswordEncoder(passwordEncoder);
+        return provider;
+    }
 
-	@Bean
-	public SecurityFilterChain securityFilterChain(
-			HttpSecurity http,
-			JwtAuthenticationFilter jwtAuthenticationFilter,
-			AuthenticationEntryPoint authenticationEntryPoint,
-			AccessDeniedHandler accessDeniedHandler) throws Exception {
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
 
-		return http
-				.csrf(csrf -> csrf.disable())
-				.httpBasic(basic -> basic.disable())
-				.formLogin(form -> form.disable())
-				.logout(logout -> logout.disable())
-				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(requests -> requests
-						.requestMatchers(PUBLIC_AUTH_ENDPOINTS).permitAll()
-						.requestMatchers(PUBLIC_DOCS_ENDPOINTS).permitAll()
-						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-						.anyRequest().authenticated())
-				.exceptionHandling(handling -> handling
-						.authenticationEntryPoint(authenticationEntryPoint)
-						.accessDeniedHandler(accessDeniedHandler))
-				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-				.build();
-	}
+        return config.getAuthenticationManager();
+    }
 
-	
-	@Bean
-	public AuthenticationEntryPoint authenticationEntryPoint(
-			@Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            AuthenticationEntryPoint authenticationEntryPoint,
+            AccessDeniedHandler accessDeniedHandler) throws Exception {
 
-		return (request, response, authException) -> resolver.resolveException(
-				request, response, null, new ApiException(AuthErrorCode.AUTHENTICATION_REQUIRED));
-	}
+        return http
+                .csrf(csrf -> csrf.disable())
+                .httpBasic(basic -> basic.disable())
+                .formLogin(form -> form.disable())
+                .logout(logout -> logout.disable())
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(requests -> requests
+                        .requestMatchers(PUBLIC_AUTH_ENDPOINTS)
+                        .permitAll()
+                        .requestMatchers(PUBLIC_DOCS_ENDPOINTS)
+                        .permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**")
+                        .permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/sports",
+                                "/api/v1/courts",
+                                "/api/v1/courts/search",
+                                "/api/v1/courts/{id}",
+                                "/api/v1/courts/{id}/schedule",
+                                "/api/v1/courts/{id}/images",
+                                "/api/v1/courts/{id}/images/{imageId}/content")
+                        .permitAll()
+                        .anyRequest()
+                        .authenticated())
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(
+                                authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class)
+                .build();
+    }
 
-	@Bean
-	public AccessDeniedHandler accessDeniedHandler(
-			@Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
+    @Bean
+    public AuthenticationEntryPoint authenticationEntryPoint(
+            @Qualifier("handlerExceptionResolver")
+            HandlerExceptionResolver resolver) {
 
-		return (request, response, deniedException) -> resolver.resolveException(
-				request, response, null, new ApiException(AuthErrorCode.ACCESS_DENIED));
-	}
+        return (request, response, authException) ->
+                resolver.resolveException(
+                        request,
+                        response,
+                        null,
+                        new ApiException(
+                                AuthErrorCode.AUTHENTICATION_REQUIRED));
+    }
+
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler(
+            @Qualifier("handlerExceptionResolver")
+            HandlerExceptionResolver resolver) {
+
+        return (request, response, deniedException) ->
+                resolver.resolveException(
+                        request,
+                        response,
+                        null,
+                        new ApiException(
+                                AuthErrorCode.ACCESS_DENIED));
+    }
 }
