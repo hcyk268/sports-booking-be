@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import dev.booking.sports.identity.api.dto.request.CreateUserRequest;
 import dev.booking.sports.identity.api.dto.request.ReplaceUserRolesRequest;
 import dev.booking.sports.identity.api.dto.request.UpdateUserProfileRequest;
+import dev.booking.sports.identity.api.dto.request.UserVersionRequest;
 import dev.booking.sports.identity.api.dto.response.UserSummaryResponse;
 import dev.booking.sports.identity.application.UserService;
 import dev.booking.sports.identity.domain.enums.UserStatus;
@@ -127,10 +128,11 @@ public class UserController {
 	public ApiResponse<UserSummaryResponse> lock(
 			@AuthenticationPrincipal AuthPrincipal principal,
 			@PathVariable UUID id,
+			@Valid @RequestBody UserVersionRequest request,
 			HttpServletRequest servletRequest) {
 
 		return ApiResponse.success(
-				userService.lock(principal.userId(), id),
+				userService.lock(principal.userId(), id, request),
 				servletRequest.getRequestURI());
 	}
 
@@ -139,9 +141,10 @@ public class UserController {
 	@Operation(summary = "Unlock a user account (admin)")
 	public ApiResponse<UserSummaryResponse> unlock(
 			@PathVariable UUID id,
+			@Valid @RequestBody UserVersionRequest request,
 			HttpServletRequest servletRequest) {
 
-		return ApiResponse.success(userService.unlock(id), servletRequest.getRequestURI());
+		return ApiResponse.success(userService.unlock(id, request), servletRequest.getRequestURI());
 	}
 
 	@PostMapping("/{id}/disable")
@@ -150,10 +153,11 @@ public class UserController {
 	public ApiResponse<UserSummaryResponse> disable(
 			@AuthenticationPrincipal AuthPrincipal principal,
 			@PathVariable UUID id,
+			@Valid @RequestBody UserVersionRequest request,
 			HttpServletRequest servletRequest) {
 
 		return ApiResponse.success(
-				userService.disable(principal.userId(), id),
+				userService.disable(principal.userId(), id, request),
 				servletRequest.getRequestURI());
 	}
 }

@@ -5,8 +5,11 @@ import java.util.Set;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
 public record ApplyRolePermissionsRequest(
+		@NotNull @PositiveOrZero Long version,
+
 		@NotNull @NotEmpty Set<String> permissionCodes,
 
 		@NotBlank String otp) {

@@ -64,6 +64,7 @@ public class PasswordChangeService {
 		otpService.verify(OtpPurpose.PASSWORD_CHANGE, userId, request.otp());
 
 		user.changePassword(passwordEncoder.encode(request.newPassword()), Instant.now());
+		userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
 		sessionService.revokeAllSessions(userId);
 

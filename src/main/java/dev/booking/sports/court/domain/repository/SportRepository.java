@@ -6,7 +6,9 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import dev.booking.sports.court.domain.model.Sport;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public interface SportRepository extends JpaRepository<Sport, UUID> {
 
     Optional<Sport> findByCode(String code);

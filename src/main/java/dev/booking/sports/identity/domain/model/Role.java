@@ -11,6 +11,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,6 +34,10 @@ public class Role extends CreatableEntity {
 
 	@Column(length = 255)
 	private String description;
+
+	@Version
+	@Column(nullable = false)
+	private Long version;
 
 	@OneToMany(mappedBy = "role")
 	private Set<UserRole> userRoles = new HashSet<>();

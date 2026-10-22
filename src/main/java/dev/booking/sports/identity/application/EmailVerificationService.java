@@ -59,6 +59,7 @@ public class EmailVerificationService {
 
 		if (user.getStatus() == UserStatus.PENDING_VERIFICATION) {
 			user.activate(Instant.now());
+			userRepository.saveAndFlush(user);
 		}
 
 		userDetailsService.evict(user.getEmail());

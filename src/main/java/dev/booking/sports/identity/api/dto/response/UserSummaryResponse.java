@@ -12,6 +12,7 @@ public record UserSummaryResponse(
 		String fullName,
 		String phone,
 		UserStatus status,
+		Long version,
 		Set<String> roles,
 		Set<String> permissions) {
 
@@ -22,6 +23,7 @@ public record UserSummaryResponse(
 				user.getFullName(),
 				user.getPhone(),
 				user.getStatus(),
+				user.getVersion(),
 				user.roleCodes(),
 				user.permissionCodes());
 	}

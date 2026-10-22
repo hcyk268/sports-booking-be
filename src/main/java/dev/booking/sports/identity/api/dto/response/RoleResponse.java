@@ -12,6 +12,7 @@ public record RoleResponse(
 		String code,
 		String name,
 		String description,
+		Long version,
 		Set<String> permissionCodes) {
 
 	public static RoleResponse from(Role role) {
@@ -23,6 +24,7 @@ public record RoleResponse(
 				role.getCode(),
 				role.getName(),
 				role.getDescription(),
+				role.getVersion(),
 				Set.copyOf(permissionCodes));
 	}
 }

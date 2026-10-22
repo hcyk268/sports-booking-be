@@ -23,8 +23,12 @@ import dev.booking.sports.identity.infrastructure.redis.OtpPurpose;
 import dev.booking.sports.identity.infrastructure.redis.RolePermissionChangePendingStore;
 import dev.booking.sports.identity.infrastructure.security.ApplicationUserDetailsService;
 import dev.booking.sports.shared.exception.ApiException;
+import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 import dev.booking.sports.shared.outbox.OutboxService;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -41,6 +45,9 @@ public class RolePermissionChangeService {
 	private final AuthSessionService sessionService;
 	private final ApplicationUserDetailsService userDetailsService;
 
+	@PersistenceContext
+	private EntityManager entityManager;
+
 	@Transactional
 	public RolePermissionChangeRequestResponse requestChange(
 			UUID actorUserId,
@@ -51,7 +58,8 @@ public class RolePermissionChangeService {
 		Set<String> permissionCodes = policy.normalizePermissionCodes(request.permissionCodes());
 		policy.assertRolePermissionsChangeAllowed(normalizedRoleCode, permissionCodes);
 		resolvePermissions(permissionCodes);
-		requireRole(normalizedRoleCode);
+		Role role = requireRole(normalizedRoleCode);
+		assertExpectedVersion(role, request.version());
 
 		User actor = userRepository.findById(actorUserId)
 				.orElseThrow(() -> new ApiException(AuthErrorCode.TOKEN_REVOKED));
@@ -81,18 +89,21 @@ public class RolePermissionChangeService {
 		Set<String> permissionCodes = policy.normalizePermissionCodes(request.permissionCodes());
 		assertPendingMatches(actorUserId, normalizedRoleCode, permissionCodes);
 		policy.assertRolePermissionsChangeAllowed(normalizedRoleCode, permissionCodes);
+		Role role = requireRoleWithPermissions(normalizedRoleCode);
+		assertExpectedVersion(role, request.version());
+		entityManager.lock(role, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
 
 		otpService.verify(OtpPurpose.ROLE_PERMISSION_CHANGE, actorUserId, normalizedRoleCode, request.otp());
 
-		Role role = requireRoleWithPermissions(normalizedRoleCode);
 		Set<Permission> permissions = resolvePermissions(permissionCodes);
 
 		role.replacePermissions(permissions);
+		Role saved = roleRepository.saveAndFlush(role);
 
 		pendingStore.delete(actorUserId, normalizedRoleCode);
 		revokeSessionsForRole(normalizedRoleCode);
 
-		return RoleResponse.from(requireRoleWithPermissions(normalizedRoleCode));
+		return RoleResponse.from(saved);
 	}
 
 	private void assertPendingMatches(UUID actorUserId, String roleCode, Set<String> permissionCodes) {
@@ -133,5 +144,12 @@ public class RolePermissionChangeService {
 			throw new ApiException(AuthErrorCode.ROLE_NOT_FOUND);
 		}
 		return roleCode.trim();
+	}
+
+	private void assertExpectedVersion(Role role, Long expectedVersion) {
+		if (!expectedVersion.equals(role.getVersion())) {
+			throw new ApiException(
+					ConcurrencyErrorCode.OPTIMISTIC_LOCK_CONFLICT);
+		}
 	}
 }

@@ -64,6 +64,7 @@ public class PasswordResetService {
 		otpService.verify(OtpPurpose.PASSWORD_RESET, user.getId(), request.otp());
 
 		user.changePassword(passwordEncoder.encode(request.newPassword()), Instant.now());
+		userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
 		sessionService.revokeAllSessions(user.getId());
 

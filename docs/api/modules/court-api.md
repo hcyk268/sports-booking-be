@@ -71,6 +71,11 @@ New courts created by providers start in status `DRAFT`. Publishing changes stat
   - The provider identity (`ownerId`) is always extracted from the JWT principal, never accepted from request bodies.
   - On `/courts/{id}` (update/publish): updating a court owned by another user returns `403 COURT_ACCESS_DENIED`.
   - On `/provider/courts/{id}/**` sub-resources: operations on a court not owned by the caller return `404 COURT_NOT_FOUND`.
+- **Concurrent profile updates:**
+  - Owner court responses include a non-negative `version`; public court responses omit it.
+  - `PUT /courts/{id}` requires the `version` returned by the latest owner response.
+  - A stale version or a concurrent update returns `409 OPTIMISTIC_LOCK_CONFLICT`; reload the court before retrying.
+  - Operating hours, price rules, closures, and images continue to serialize writes with a pessimistic court lock and do not participate in the profile version contract.
 - **Operating hours & slot generation:**
   - Weekly schedule allows at most 7 days (one entry per `DayOfWeek`; duplicates return `DUPLICATE_OPERATING_DAY`).
   - Days omitted from the schedule are days off (`slots: []`).

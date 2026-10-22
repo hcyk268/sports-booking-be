@@ -3,6 +3,8 @@ package dev.booking.sports.court.api.dto.response;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import dev.booking.sports.court.domain.enums.CourtStatus;
 import dev.booking.sports.court.domain.model.Court;
 
@@ -17,6 +19,8 @@ public record CourtResponse(
         String ward,
         String description,
         CourtStatus status,
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Long version,
         List<String> amenities,
         String rules,
         List<CourtImageResponse> images,
@@ -47,6 +51,7 @@ public record CourtResponse(
                 court.getWard(),
                 court.getDescription(),
                 court.getStatus(),
+                ownerView ? court.getVersion() : null,
                 court.getAmenities().stream().sorted().toList(),
                 court.getRules(),
                 gallery,

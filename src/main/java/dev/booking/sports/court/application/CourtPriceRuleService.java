@@ -19,9 +19,6 @@ import dev.booking.sports.court.domain.repository.CourtPriceRuleRepository;
 import dev.booking.sports.court.domain.repository.CourtRepository;
 import dev.booking.sports.shared.exception.ApiException;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -30,9 +27,6 @@ public class CourtPriceRuleService {
 
     private final CourtRepository courtRepository;
     private final CourtPriceRuleRepository priceRuleRepository;
-
-    @PersistenceContext
-    private EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public List<PriceRuleResponse> getPriceRules(
@@ -51,11 +45,7 @@ public class CourtPriceRuleService {
             UUID courtId,
             UpdatePriceRulesRequest request) {
 
-        Court court = requireOwnedCourt(ownerId, courtId);
-
-        entityManager.lock(
-                court,
-                LockModeType.PESSIMISTIC_WRITE);
+        Court court = requireOwnedCourtForUpdate(ownerId, courtId);
 
         validateRules(request.rules());
 
@@ -88,6 +78,17 @@ public class CourtPriceRuleService {
 
         return courtRepository
                 .findByIdAndOwnerId(courtId, ownerId)
+                .orElseThrow(() ->
+                        new ApiException(
+                                CourtErrorCode.COURT_NOT_FOUND));
+    }
+
+    private Court requireOwnedCourtForUpdate(
+            UUID ownerId,
+            UUID courtId) {
+
+        return courtRepository
+                .findOwnedCourtForUpdate(courtId, ownerId)
                 .orElseThrow(() ->
                         new ApiException(
                                 CourtErrorCode.COURT_NOT_FOUND));

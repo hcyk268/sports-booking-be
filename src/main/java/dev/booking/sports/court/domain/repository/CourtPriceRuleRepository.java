@@ -7,7 +7,9 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import dev.booking.sports.court.domain.model.CourtPriceRule;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public interface CourtPriceRuleRepository
         extends JpaRepository<CourtPriceRule, UUID> {
 

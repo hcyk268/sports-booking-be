@@ -55,6 +55,7 @@ Machine-readable `code` values in error responses. See [API Conventions](./api-c
 | 409 | `COURT_PUBLISH_NOT_ALLOWED` | Only draft courts can be published |
 | 409 | `DATA_CONFLICT` | A database conflict occurred |
 | 409 | `EMAIL_ALREADY_EXISTS` | Email is already registered |
+| 409 | `OPTIMISTIC_LOCK_CONFLICT` | Resource was modified by another request; reload and retry |
 | 409 | `UPLOAD_CHANGED` | Object changed during verification; retry completion |
 | 409 | `UPLOAD_EXPIRED` | Upload expired; start a new upload |
 | 409 | `UPLOAD_NOT_READY` | Upload has not been verified or is already attached |

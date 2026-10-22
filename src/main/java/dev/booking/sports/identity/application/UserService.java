@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.booking.sports.identity.api.dto.request.CreateUserRequest;
 import dev.booking.sports.identity.api.dto.request.ReplaceUserRolesRequest;
 import dev.booking.sports.identity.api.dto.request.UpdateUserProfileRequest;
+import dev.booking.sports.identity.api.dto.request.UserVersionRequest;
 import dev.booking.sports.identity.config.FrontendProperties;
 import dev.booking.sports.identity.domain.event.AdminUserProvisionedEvent;
 import dev.booking.sports.identity.domain.event.IdentityOutboxMessageTypes;
@@ -30,9 +31,14 @@ import dev.booking.sports.identity.domain.repository.UserRepository;
 import dev.booking.sports.identity.infrastructure.security.ApplicationUserDetailsService;
 import dev.booking.sports.shared.api.PageResponse;
 import dev.booking.sports.shared.exception.ApiException;
+import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 import dev.booking.sports.shared.outbox.OutboxService;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 
 import lombok.RequiredArgsConstructor;
 
@@ -49,6 +55,9 @@ public class UserService {
 	private final AuthSessionService sessionService;
 	private final OutboxService outboxService;
 	private final FrontendProperties frontendProperties;
+
+	@PersistenceContext
+	private EntityManager entityManager;
 
 	@Transactional
 	public UserSummaryResponse create(CreateUserRequest request) {
@@ -94,9 +103,11 @@ public class UserService {
 	@Transactional
 	public UserSummaryResponse updateMe(UUID userId, UpdateUserProfileRequest request) {
 		User user = requireUser(userId);
+		assertExpectedVersion(user, request.version());
 		applyProfilePatch(user, request);
+		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
-		return UserSummaryResponse.from(user);
+		return UserSummaryResponse.from(saved);
 	}
 
 	@Transactional(readOnly = true)
@@ -117,26 +128,32 @@ public class UserService {
 	@Transactional
 	public UserSummaryResponse updateById(UUID id, UpdateUserProfileRequest request) {
 		User user = requireUser(id);
+		assertExpectedVersion(user, request.version());
 		applyProfilePatch(user, request);
+		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
-		return UserSummaryResponse.from(user);
+		return UserSummaryResponse.from(saved);
 	}
 
 	@Transactional
 	public UserSummaryResponse replaceRoles(UUID actorId, UUID id, ReplaceUserRolesRequest request) {
 		assertNotSelf(actorId, id);
 		User user = requireUser(id);
+		assertExpectedVersion(user, request.version());
 		Set<Role> roles = resolveRoles(request.roleCodes());
+		entityManager.lock(user, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
 		user.replaceRoles(roles);
+		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
 		sessionService.revokeAllSessions(id);
-		return UserSummaryResponse.from(user);
+		return UserSummaryResponse.from(saved);
 	}
 
 	@Transactional
-	public UserSummaryResponse lock(UUID actorId, UUID id) {
+	public UserSummaryResponse lock(UUID actorId, UUID id, UserVersionRequest request) {
 		assertNotSelf(actorId, id);
 		User user = requireUser(id);
+		assertExpectedVersion(user, request.version());
 		if (user.getStatus() == UserStatus.LOCKED) {
 			throw new ApiException(AuthErrorCode.USER_ALREADY_LOCKED);
 		}
@@ -144,33 +161,38 @@ public class UserService {
 			throw new ApiException(AuthErrorCode.USER_ALREADY_DISABLED);
 		}
 		user.lock();
+		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
 		sessionService.revokeAllSessions(id);
-		return UserSummaryResponse.from(user);
+		return UserSummaryResponse.from(saved);
 	}
 
 	@Transactional
-	public UserSummaryResponse unlock(UUID id) {
+	public UserSummaryResponse unlock(UUID id, UserVersionRequest request) {
 		User user = requireUser(id);
+		assertExpectedVersion(user, request.version());
 		if (user.getStatus() != UserStatus.LOCKED) {
 			throw new ApiException(AuthErrorCode.USER_NOT_LOCKED);
 		}
 		user.unlock();
+		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
-		return UserSummaryResponse.from(user);
+		return UserSummaryResponse.from(saved);
 	}
 
 	@Transactional
-	public UserSummaryResponse disable(UUID actorId, UUID id) {
+	public UserSummaryResponse disable(UUID actorId, UUID id, UserVersionRequest request) {
 		assertNotSelf(actorId, id);
 		User user = requireUser(id);
+		assertExpectedVersion(user, request.version());
 		if (user.getStatus() == UserStatus.DISABLED) {
 			throw new ApiException(AuthErrorCode.USER_ALREADY_DISABLED);
 		}
 		user.disable();
+		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
 		sessionService.revokeAllSessions(id);
-		return UserSummaryResponse.from(user);
+		return UserSummaryResponse.from(saved);
 	}
 
 	private User requireUser(UUID id) {
@@ -217,6 +239,13 @@ public class UserService {
 	private void assertNotSelf(UUID actorId, UUID targetId) {
 		if (actorId.equals(targetId)) {
 			throw new ApiException(AuthErrorCode.CANNOT_MODIFY_SELF);
+		}
+	}
+
+	private void assertExpectedVersion(User user, Long expectedVersion) {
+		if (!expectedVersion.equals(user.getVersion())) {
+			throw new ApiException(
+					ConcurrencyErrorCode.OPTIMISTIC_LOCK_CONFLICT);
 		}
 	}
 
