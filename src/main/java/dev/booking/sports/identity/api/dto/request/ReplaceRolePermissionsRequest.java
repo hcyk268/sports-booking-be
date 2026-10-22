@@ -2,9 +2,11 @@ package dev.booking.sports.identity.api.dto.request;
 
 import java.util.Set;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
-public record ReplaceRolePermissionsRequest(@NotNull @NotEmpty Set<String> permissionCodes) {
+public record ReplaceRolePermissionsRequest(
+		@NotNull @PositiveOrZero Long version,
+		@NotNull @NotEmpty Set<String> permissionCodes) {
 }

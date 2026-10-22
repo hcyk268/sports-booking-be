@@ -74,6 +74,7 @@ public class AuthService {
 		requireLoginAllowed(user);
 
 		user.setLastLoginAt(Instant.now());
+		userRepository.saveAndFlush(user);
 
 		AuthSessionService.IssuedTokens tokens = sessionService.startSession(user, userAgent, ip);
 		return TokenResponse.of(
