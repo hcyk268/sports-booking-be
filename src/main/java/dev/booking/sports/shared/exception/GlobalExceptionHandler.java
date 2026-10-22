@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -20,6 +21,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -222,6 +224,27 @@ public class GlobalExceptionHandler {
 				request.getRequestURI(),
 				null);
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+	}
+
+	@ExceptionHandler({
+			OptimisticLockingFailureException.class,
+			OptimisticLockException.class
+	})
+	public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(
+			Exception exception,
+			HttpServletRequest request) {
+
+		log.warn("Optimistic lock conflict at {}: {}", request.getRequestURI(), exception.getMessage());
+
+		ErrorCode errorCode = ConcurrencyErrorCode.OPTIMISTIC_LOCK_CONFLICT;
+		ErrorResponse body = new ErrorResponse(
+				Instant.now(),
+				errorCode.status().value(),
+				errorCode.code(),
+				errorCode.defaultMessage(),
+				request.getRequestURI(),
+				null);
+		return ResponseEntity.status(errorCode.status()).body(body);
 	}
 
 	@ExceptionHandler(Exception.class)

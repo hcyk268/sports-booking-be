@@ -9,6 +9,7 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +25,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
+import jakarta.persistence.OptimisticLockException;
 
 class GlobalExceptionHandlerTest {
 
@@ -72,6 +74,32 @@ class GlobalExceptionHandlerTest {
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().status()).isEqualTo(409);
 		assertThat(response.getBody().code()).isEqualTo("DATA_CONFLICT");
+	}
+
+	@Test
+	void handleOptimisticLockingFailure_returns409OptimisticLockConflict() {
+		ObjectOptimisticLockingFailureException ex =
+				new ObjectOptimisticLockingFailureException(Object.class, "resource-id");
+
+		ResponseEntity<ErrorResponse> response =
+				handler.handleOptimisticLockingFailure(ex, request);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().status()).isEqualTo(409);
+		assertThat(response.getBody().code()).isEqualTo("OPTIMISTIC_LOCK_CONFLICT");
+	}
+
+	@Test
+	void handleJpaOptimisticLockException_returns409OptimisticLockConflict() {
+		OptimisticLockException ex = new OptimisticLockException("stale entity");
+
+		ResponseEntity<ErrorResponse> response =
+				handler.handleOptimisticLockingFailure(ex, request);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().code()).isEqualTo("OPTIMISTIC_LOCK_CONFLICT");
 	}
 
 	@Test
