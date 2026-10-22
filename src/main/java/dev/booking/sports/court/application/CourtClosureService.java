@@ -17,9 +17,6 @@ import dev.booking.sports.court.domain.repository.CourtClosureRepository;
 import dev.booking.sports.court.domain.repository.CourtRepository;
 import dev.booking.sports.shared.exception.ApiException;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -28,9 +25,6 @@ public class CourtClosureService {
 
     private final CourtRepository courtRepository;
     private final CourtClosureRepository closureRepository;
-
-    @PersistenceContext
-    private EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public List<CourtClosureResponse> getClosures(
@@ -54,11 +48,7 @@ public class CourtClosureService {
             UUID courtId,
             CreateCourtClosureRequest request) {
 
-        Court court = requireOwnedCourt(ownerId, courtId);
-
-        entityManager.lock(
-                court,
-                LockModeType.PESSIMISTIC_WRITE);
+        Court court = requireOwnedCourtForUpdate(ownerId, courtId);
 
         validateTime(request.startTime(), request.endTime());
 
@@ -95,11 +85,7 @@ public class CourtClosureService {
             UUID courtId,
             UUID closureId) {
 
-        Court court = requireOwnedCourt(ownerId, courtId);
-
-        entityManager.lock(
-                court,
-                LockModeType.PESSIMISTIC_WRITE);
+        requireOwnedCourtForUpdate(ownerId, courtId);
 
         CourtClosure closure = closureRepository
                 .findByIdAndCourt_Id(closureId, courtId)
@@ -116,6 +102,17 @@ public class CourtClosureService {
 
         return courtRepository
                 .findByIdAndOwnerId(courtId, ownerId)
+                .orElseThrow(() ->
+                        new ApiException(
+                                CourtErrorCode.COURT_NOT_FOUND));
+    }
+
+    private Court requireOwnedCourtForUpdate(
+            UUID ownerId,
+            UUID courtId) {
+
+        return courtRepository
+                .findOwnedCourtForUpdate(courtId, ownerId)
                 .orElseThrow(() ->
                         new ApiException(
                                 CourtErrorCode.COURT_NOT_FOUND));

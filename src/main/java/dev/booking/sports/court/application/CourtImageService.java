@@ -15,9 +15,6 @@ import dev.booking.sports.court.domain.repository.CourtImageRepository;
 import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.upload.UploadService;
 import dev.booking.sports.shared.upload.legacy.LegacyImageReader;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service @RequiredArgsConstructor
@@ -26,12 +23,10 @@ public class CourtImageService {
     private final CourtImageRepository imageRepository;
     private final UploadService uploads;
     private final LegacyImageReader legacy;
-    @PersistenceContext private EntityManager entityManager;
 
     @Transactional
     public CourtImageResponse attach(UUID ownerId, UUID courtId, UUID uploadId) {
-        Court court = ownedCourt(ownerId, courtId);
-        entityManager.lock(court, LockModeType.PESSIMISTIC_WRITE);
+        Court court = ownedCourtForUpdate(ownerId, courtId);
         var existing = imageRepository.findByUploadId(uploadId);
         if (existing.isPresent()) {
             if (!existing.get().getCourt().getId().equals(courtId))
@@ -80,8 +75,7 @@ public class CourtImageService {
     }
     @Transactional
     public CourtImageResponse setCover(UUID ownerId, UUID courtId, UUID imageId) {
-        Court court = ownedCourt(ownerId, courtId);
-        entityManager.lock(court, LockModeType.PESSIMISTIC_WRITE);
+        ownedCourtForUpdate(ownerId, courtId);
         CourtImage selected = image(courtId, imageId);
         if (!selected.isCover()) {
             gallery(courtId).forEach(item -> item.setCover(false));
@@ -93,8 +87,7 @@ public class CourtImageService {
     }
     @Transactional
     public void delete(UUID ownerId, UUID courtId, UUID imageId) {
-        Court court = ownedCourt(ownerId, courtId);
-        entityManager.lock(court, LockModeType.PESSIMISTIC_WRITE);
+        ownedCourtForUpdate(ownerId, courtId);
         CourtImage selected = image(courtId, imageId);
         boolean wasCover = selected.isCover();
         if (selected.getUploadId() != null) uploads.release(selected.getUploadId());
@@ -108,6 +101,10 @@ public class CourtImageService {
     }
     private Court ownedCourt(UUID actor, UUID courtId) {
         return courtRepository.findByIdAndOwnerId(courtId, actor)
+                .orElseThrow(() -> new ApiException(CourtErrorCode.COURT_NOT_FOUND));
+    }
+    private Court ownedCourtForUpdate(UUID actor, UUID courtId) {
+        return courtRepository.findOwnedCourtForUpdate(courtId, actor)
                 .orElseThrow(() -> new ApiException(CourtErrorCode.COURT_NOT_FOUND));
     }
     private void activeCourt(UUID courtId) {

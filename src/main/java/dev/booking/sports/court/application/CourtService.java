@@ -22,6 +22,7 @@ import dev.booking.sports.court.domain.repository.CourtRepository;
 import dev.booking.sports.court.domain.repository.SportRepository;
 import dev.booking.sports.shared.api.PageResponse;
 import dev.booking.sports.shared.exception.ApiException;
+import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -54,7 +55,7 @@ public class CourtService {
         applyAmenitiesAndRules(court, request.amenities(), request.rules());
         court.setStatus(CourtStatus.DRAFT);
 
-        return CourtResponse.forOwner(courtRepository.save(court));
+        return CourtResponse.forOwner(courtRepository.saveAndFlush(court));
     }
 
     @Transactional
@@ -71,6 +72,11 @@ public class CourtService {
             throw new ApiException(CourtErrorCode.COURT_ACCESS_DENIED);
         }
 
+        if (!request.version().equals(court.getVersion())) {
+            throw new ApiException(
+                    ConcurrencyErrorCode.OPTIMISTIC_LOCK_CONFLICT);
+        }
+
         Sport sport = sportRepository.findById(request.sportId())
                 .orElseThrow(() ->
                         new ApiException(CourtErrorCode.SPORT_NOT_FOUND));
@@ -85,7 +91,7 @@ public class CourtService {
                 ? null : request.description().trim());
         applyAmenitiesAndRules(court, request.amenities(), request.rules());
 
-        return CourtResponse.forOwner(courtRepository.save(court));
+        return CourtResponse.forOwner(courtRepository.saveAndFlush(court));
     }
 
     @Transactional(readOnly = true)
@@ -155,7 +161,7 @@ public class CourtService {
         }
 
         court.setStatus(CourtStatus.ACTIVE);
-        return CourtResponse.forOwner(courtRepository.save(court));
+        return CourtResponse.forOwner(courtRepository.saveAndFlush(court));
     }
 
     private void applyAmenitiesAndRules(

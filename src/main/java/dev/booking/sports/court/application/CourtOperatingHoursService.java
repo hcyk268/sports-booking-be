@@ -21,9 +21,6 @@ import dev.booking.sports.court.domain.repository.CourtOperatingHoursRepository;
 import dev.booking.sports.court.domain.repository.CourtRepository;
 import dev.booking.sports.shared.exception.ApiException;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -32,9 +29,6 @@ public class CourtOperatingHoursService {
 
     private final CourtRepository courtRepository;
     private final CourtOperatingHoursRepository hoursRepository;
-
-    @PersistenceContext
-    private EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public List<OperatingHoursResponse> getOperatingHours(
@@ -53,11 +47,7 @@ public class CourtOperatingHoursService {
             UUID courtId,
             UpdateOperatingHoursRequest request) {
 
-        Court court = requireOwnedCourt(ownerId, courtId);
-
-        entityManager.lock(
-                court,
-                LockModeType.PESSIMISTIC_WRITE);
+        Court court = requireOwnedCourtForUpdate(ownerId, courtId);
 
         validateSchedule(request);
 
@@ -90,6 +80,17 @@ public class CourtOperatingHoursService {
 
         return courtRepository
                 .findByIdAndOwnerId(courtId, ownerId)
+                .orElseThrow(() ->
+                        new ApiException(
+                                CourtErrorCode.COURT_NOT_FOUND));
+    }
+
+    private Court requireOwnedCourtForUpdate(
+            UUID ownerId,
+            UUID courtId) {
+
+        return courtRepository
+                .findOwnedCourtForUpdate(courtId, ownerId)
                 .orElseThrow(() ->
                         new ApiException(
                                 CourtErrorCode.COURT_NOT_FOUND));
