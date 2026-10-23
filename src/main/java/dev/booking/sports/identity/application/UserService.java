@@ -36,10 +36,6 @@ import dev.booking.sports.shared.outbox.OutboxService;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.PersistenceContext;
-
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -55,9 +51,6 @@ public class UserService {
 	private final AuthSessionService sessionService;
 	private final OutboxService outboxService;
 	private final FrontendProperties frontendProperties;
-
-	@PersistenceContext
-	private EntityManager entityManager;
 
 	@Transactional
 	public UserSummaryResponse create(CreateUserRequest request) {
@@ -138,10 +131,9 @@ public class UserService {
 	@Transactional
 	public UserSummaryResponse replaceRoles(UUID actorId, UUID id, ReplaceUserRolesRequest request) {
 		assertNotSelf(actorId, id);
-		User user = requireUser(id);
+		User user = requireUserForMutation(id);
 		assertExpectedVersion(user, request.version());
 		Set<Role> roles = resolveRoles(request.roleCodes());
-		entityManager.lock(user, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
 		user.replaceRoles(roles);
 		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
@@ -197,6 +189,11 @@ public class UserService {
 
 	private User requireUser(UUID id) {
 		return userRepository.findByIdWithRolesAndPermissions(id)
+				.orElseThrow(() -> new ApiException(AuthErrorCode.USER_NOT_FOUND));
+	}
+
+	private User requireUserForMutation(UUID id) {
+		return userRepository.findByIdWithRolesAndPermissionsForMutation(id)
 				.orElseThrow(() -> new ApiException(AuthErrorCode.USER_NOT_FOUND));
 	}
 
