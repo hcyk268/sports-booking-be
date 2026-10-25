@@ -16,7 +16,9 @@ public class RabbitMQConfig {
 	@Bean
 	public JacksonJsonMessageConverter rabbitMessageConverter() {
 		DefaultClassMapper classMapper = new DefaultClassMapper();
-		classMapper.setTrustedPackages("dev.booking.sports.notification.email");
+		classMapper.setTrustedPackages(
+				"dev.booking.sports.notification.email",
+				"dev.booking.sports.booking.infrastructure.messaging");
 
 		JacksonJsonMessageConverter converter = new JacksonJsonMessageConverter();
 		converter.setClassMapper(classMapper);
