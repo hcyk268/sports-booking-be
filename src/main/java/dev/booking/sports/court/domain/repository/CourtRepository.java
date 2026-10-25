@@ -1,5 +1,7 @@
 package dev.booking.sports.court.domain.repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,6 +45,13 @@ public interface CourtRepository
     Optional<Court> findByIdAndOwnerId(
             UUID id,
             UUID ownerId);
+
+    @Query("select court.id from Court court where court.ownerId = :ownerId")
+    List<UUID> findIdsByOwnerId(@Param("ownerId") UUID ownerId);
+
+    long countByOwnerIdAndIdIn(
+            UUID ownerId,
+            Collection<UUID> courtIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from Court c where c.id = :courtId and c.ownerId = :ownerId")
