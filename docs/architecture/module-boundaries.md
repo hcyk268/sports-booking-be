@@ -7,7 +7,7 @@ This document defines who owns each capability and which interfaces other parts 
 There are two different interfaces:
 
 1. **HTTP API:** routes exposed to clients through Spring controllers. A public HTTP route does not make its controller, DTO, or repository a Java API for other modules.
-2. **In-process API:** types that another module is allowed to import or implement. Spring Modulith enforces module dependencies declared in `package-info.java`. The sole named feature-module interface is `identity :: events`; `shared` is an open module. A Java `public` modifier alone is not a promise of cross-module stability.
+2. **In-process API:** types that another module is allowed to import or implement. Spring Modulith enforces module dependencies declared in `package-info.java`. The named feature-module interfaces are `identity :: events` and `court :: api`; `shared` is an open module. A Java `public` modifier alone is not a promise of cross-module stability.
 
 The application is one process and one build artifact. These boundaries control coupling and ownership; they are not network service boundaries.
 
@@ -15,17 +15,20 @@ The application is one process and one build artifact. These boundaries control 
 
 | Calling module | Allowed dependencies | Disallowed direct dependency examples |
 | --- | --- | --- |
-| `identity` | `shared` | `court`, `notification` internals |
-| `court` | `shared` | `identity` entities/repositories, `notification` internals |
-| `notification` | `shared`, `identity :: events` | Other `identity` packages; `court` internals |
-| `shared` | No feature module | `identity`, `court`, `notification` implementation classes |
+| `identity` | `shared` | `court`, `booking`, `notification` internals |
+| `court` | `shared` | `identity`, `booking`, `notification` internals |
+| `booking` | `shared`, `court :: api` | `identity`, other `court` packages, and `notification` internals |
+| `notification` | `shared`, `identity :: events` | Other `identity` packages; `court` and `booking` internals |
+| `shared` | No feature module | `identity`, `court`, `booking`, `notification` implementation classes |
 
-These are the `allowedDependencies` declarations in [identity](../../src/main/java/dev/booking/sports/identity/package-info.java), [court](../../src/main/java/dev/booking/sports/court/package-info.java), and [notification](../../src/main/java/dev/booking/sports/notification/package-info.java). [Shared](../../src/main/java/dev/booking/sports/shared/package-info.java) is declared `OPEN`; that makes its subpackages available to other modules, but callers should still use the smallest relevant contract. [ArchitectureTest](../../src/test/java/dev/booking/sports/ArchitectureTest.java) runs `ApplicationModules.verify()` to check the declared structure.
+These are the `allowedDependencies` declarations in [identity](../../src/main/java/dev/booking/sports/identity/package-info.java), [court](../../src/main/java/dev/booking/sports/court/package-info.java), [booking](../../src/main/java/dev/booking/sports/booking/package-info.java), and [notification](../../src/main/java/dev/booking/sports/notification/package-info.java). [Shared](../../src/main/java/dev/booking/sports/shared/package-info.java) is declared `OPEN`; that makes its subpackages available to other modules, but callers should still use the smallest relevant contract. [ArchitectureTest](../../src/test/java/dev/booking/sports/ArchitectureTest.java) runs `ApplicationModules.verify()` to check the declared structure.
 
 ```mermaid
 flowchart LR
     Identity[identity] --> Shared[shared]
     Court[court] --> Shared
+    Booking[booking] --> Shared
+    Booking -->|named interface: api| Court
     Notification[notification] --> Shared
     Notification -->|named interface: events| Identity
 ```
@@ -48,9 +51,19 @@ flowchart LR
 
 **HTTP API:** `/api/v1/sports`, `/api/v1/courts`, and `/api/v1/provider/courts`, including their subresources. The [Court API](../api/modules/court-api.md) is the client contract. A schedule slot describes configured time and price; booking availability is outside the implemented scope.
 
-**In-process API:** court does not currently declare a named Spring Modulith interface for other feature modules. It integrates with shared uploads by implementing `UploadPolicy` in `CourtImageUploadPolicy` for purpose `COURT_IMAGE`, and by calling `UploadService` to claim, release, and read assets. This is an adapter supplied to `shared` through Spring dependency injection; `shared` does not import court classes.
+**In-process API:** `court :: api` exposes `CourtFacade` for provider ownership checks and quoted, bookable schedule slots. It exposes immutable values rather than court entities. Court also integrates with shared uploads by implementing `UploadPolicy` in `CourtImageUploadPolicy` for purpose `COURT_IMAGE`, and by calling `UploadService` to claim, release, and read assets.
 
 **Boundary rules:** court owns the meaning of `COURT_IMAGE`, the resource ownership check, gallery capacity, and which image belongs to which court. Upload storage mechanics and upload-asset state are owned by `shared`. New consumers should not import court repositories or use court entities as a shortcut for a separate capability.
+
+### `booking` — reservation lifecycle and court occupancy
+
+**Owns:** booking holds, selected booking slots, price snapshots, booking state transitions, idempotency identity, expiry metadata, and booking status history. PostgreSQL exclusion constraints prevent active slots for the same court from overlapping.
+
+**HTTP API:** one resource-oriented controller owns `/api/v1/bookings`. `POST /api/v1/bookings` creates a temporary hold with a required idempotency key. `GET /api/v1/bookings/me` returns the current customer's paginated history. `GET /api/v1/bookings` lets admins list all matching bookings and limits providers to bookings whose courts they fully own. `GET /api/v1/bookings/{id}` returns one accessible booking. `POST /api/v1/bookings/{id}/cancellations` cancels an accessible booking with version checking.
+
+**Integration API:** booking consumes only `court :: api` for provider ownership authorization. The named `booking :: events` interface exposes immutable held, confirmed, cancelled, and expired event payloads. `BookingOutboxMessageTypes` owns their aggregate type, event names, and contract version so publishers and consumers do not duplicate string literals. `BookingOutboxPublicationHandler` validates stored payloads and publishes a versioned envelope to the durable `sports.booking.events` RabbitMQ topic exchange, using the event type as its routing key. Each logical consumer must bind its own durable queue and deduplicate deliveries by `eventId`. Each payload carries booking/customer identity, monetary totals, occurrence time, and slot snapshots; lifecycle-specific metadata remains on its corresponding event. Booking stores customer and court identifiers as UUID values and does not import identity or court entities and repositories.
+
+**Boundary rules:** booking owns reservation state and occupancy. Court continues to own operating hours, price rules, closures, and whether a court is bookable. Redis locks each selected slot in a stable key order for short-lived contention control; PostgreSQL's exclusion constraint remains the final overlap guard. Customer and idempotency key are uniquely constrained in PostgreSQL. A scheduled worker expires holds across instances with `FOR UPDATE SKIP LOCKED`. Payment must not update booking tables directly; it should drive validated booking transitions through an explicit contract or event.
 
 ### `notification` — outbound email
 
@@ -87,6 +100,7 @@ flowchart LR
 | Identity email request | `identity` → `shared` → `notification` | Identity saves an outbox event; shared relay invokes notification's handler, which publishes to RabbitMQ. Notification may import only `identity :: events` from identity. |
 | Court image upload | `court` ↔ `shared` | Court supplies an `UploadPolicy` bean. Shared verifies and tracks the upload; court claims/releases it and owns gallery records. |
 | Authentication for court requests | HTTP security context → `court` | The authenticated principal carries the actor ID and authorities. Court checks provider role and owner UUID without importing identity persistence classes. |
+| Provider booking detail authorization | `booking` → `court :: api` | Booking passes the actor and referenced court IDs to `CourtFacade`; court answers whether all courts belong to that provider without exposing repositories or entities. |
 
 Do not use a database table as an undocumented module API. A shared physical PostgreSQL database does not transfer ownership of another module's records. Likewise, a RabbitMQ message is an internal transport contract here, not an externally published integration API.
 
