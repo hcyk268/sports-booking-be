@@ -8,12 +8,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import dev.booking.sports.identity.domain.enums.UserStatus;
 import dev.booking.sports.identity.domain.model.User;
 import org.springframework.stereotype.Repository;
+
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
@@ -41,6 +44,17 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			WHERE u.id = :id
 			""")
 	Optional<User> findByIdWithRolesAndPermissions(@Param("id") UUID id);
+
+	@Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+	@Query("""
+			SELECT DISTINCT u FROM User u
+			LEFT JOIN FETCH u.userRoles ur
+			LEFT JOIN FETCH ur.role r
+			LEFT JOIN FETCH r.rolePermissions rp
+			LEFT JOIN FETCH rp.permission
+			WHERE u.id = :id
+			""")
+	Optional<User> findByIdWithRolesAndPermissionsForMutation(@Param("id") UUID id);
 
 	@EntityGraph(attributePaths = {
 			"userRoles",

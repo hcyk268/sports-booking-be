@@ -6,7 +6,7 @@ This document describes the architecture implemented in the current backend. It 
 
 Sports Booking is a **Spring Boot modular monolith**. One application process serves the HTTP API and runs scheduled/background workers. Spring Modulith defines and verifies the module boundaries; it does not deploy the modules as separate services.
 
-The implemented product scope is identity and access management, court discovery and provider management, outbound email notifications, and shared image uploads. Court schedules describe operating hours, prices, and closures. **Reservations, payment, and booking availability are not implemented yet.** In particular, an open schedule slot is not a reservation guarantee.
+The implemented product scope is identity and access management, court discovery and provider management, outbound email notifications, shared image uploads, booking holds, queries, and cancellation. Court schedules describe operating hours, prices, and closures. Booking creation validates these rules and checks occupancy before persisting a hold. **Payment, confirmation, refunds, and booking-aware public availability are not implemented yet.** An open schedule slot is not a reservation guarantee until a booking hold is committed.
 
 The application uses Java 21, Spring Boot, Spring Data JPA, Spring Security, Flyway, PostgreSQL, Redis, RabbitMQ, SendGrid, and Cloudflare R2. R2 can be disabled by configuration; the upload initiation endpoint then returns an unavailable error.
 
@@ -18,7 +18,7 @@ flowchart LR
     Client -->|Presigned PUT and GET| R2[(Private Cloudflare R2 bucket)]
     App -->|JPA and Flyway| PG[(PostgreSQL)]
     App -->|Sessions, tokens, OTP, rate limits, cache| Redis[(Redis)]
-    App -->|Publish and consume email messages| MQ[(RabbitMQ)]
+    App -->|Publish booking events; publish and consume email messages| MQ[(RabbitMQ)]
     App -->|Verify, promote, delete, and sign objects| R2
     App -->|Send email| SG[SendGrid]
 ```
@@ -29,9 +29,9 @@ The diagram shows logical communication, not deployment topology. The API, outbo
 
 | Store | Responsibility | Persistence model |
 | --- | --- | --- |
-| PostgreSQL | Users, roles, permissions, courts, schedules, prices, closures, image metadata, upload assets, outbox events, and processed email deliveries | System of record; schema changed through Flyway migrations |
+| PostgreSQL | Users, roles, permissions, courts, schedules, prices, closures, bookings, booking slots/history, image metadata, upload assets, outbox events, and processed email deliveries | System of record; schema changed through Flyway migrations |
 | Redis | Session state, refresh-token hashes, token versions and blacklist, verification tokens, OTPs, pending permission changes, rate limits, and user-details cache | Expiring operational state; required by current authentication flows |
-| RabbitMQ | Email delivery queue and dead-letter queue | Message transport; not the source of business data |
+| RabbitMQ | Booking event exchange, email delivery queue, and dead-letter queue | Message transport; not the source of business data |
 | Cloudflare R2 | Staged and attached image bytes | Private object storage; PostgreSQL holds the corresponding metadata |
 
 ## 3. Modules and dependency rules
@@ -42,6 +42,8 @@ The root package is `dev.booking.sports`. Each top-level module is declared in i
 flowchart LR
     Identity[identity] --> Shared[shared - open module]
     Court[court] --> Shared
+    Booking[booking] --> Shared
+    Booking -->|court :: api| Court
     Notification[notification] --> Shared
     Notification -->|identity :: events| Identity
 ```
@@ -50,6 +52,7 @@ flowchart LR
 | --- | --- | --- |
 | `identity` | Accounts, credentials, RBAC, JWT/session lifecycle, verification and OTP flows | Auth/user/role/permission controllers; depends on `shared` |
 | `court` | Sports catalog, court lifecycle, operating hours, price rules, closures, schedules, and gallery | Public and provider court controllers; depends on `shared` |
+| `booking` | Holds, selected slots, price snapshots, reservation state, overlap protection, and status history | Hold creation, role-scoped queries, and cancellation; depends on `shared` and `court :: api` |
 | `notification` | Email templates, queue publication, consumer, SendGrid adapter, and delivery deduplication | Consumes `identity :: events` and uses `shared` outbox infrastructure |
 | `shared` | API envelopes, errors, persistence helpers, rate limiting, outbox infrastructure, and upload protocol | An **open** Spring Modulith module used by the feature modules |
 

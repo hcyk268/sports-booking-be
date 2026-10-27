@@ -47,6 +47,10 @@ spring:
         auto-startup: false
 
 app:
+  booking:
+    hold:
+      expiry-enabled: false
+
   outbox:
     relay-enabled: false
 

@@ -25,7 +25,6 @@ import dev.booking.sports.identity.infrastructure.security.ApplicationUserDetail
 import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 import dev.booking.sports.shared.outbox.OutboxService;
-import jakarta.persistence.EntityManager;
 
 @ExtendWith(MockitoExtension.class)
 class RolePermissionChangeServiceOptimisticLockTest {
@@ -59,9 +58,6 @@ class RolePermissionChangeServiceOptimisticLockTest {
 
     @Mock
     private ApplicationUserDetailsService userDetailsService;
-
-    @Mock
-    private EntityManager entityManager;
 
     @InjectMocks
     private RolePermissionChangeService service;

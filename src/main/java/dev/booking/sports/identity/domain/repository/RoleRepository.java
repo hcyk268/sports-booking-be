@@ -5,11 +5,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import dev.booking.sports.identity.domain.model.Role;
 import org.springframework.stereotype.Repository;
+
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface RoleRepository extends JpaRepository<Role, UUID> {
@@ -31,4 +34,13 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
 			WHERE r.code = :code
 			""")
 	Optional<Role> findByCodeWithPermissions(@Param("code") String code);
+
+	@Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+	@Query("""
+			SELECT DISTINCT r FROM Role r
+			LEFT JOIN FETCH r.rolePermissions rp
+			LEFT JOIN FETCH rp.permission
+			WHERE r.code = :code
+			""")
+	Optional<Role> findByCodeWithPermissionsForMutation(@Param("code") String code);
 }

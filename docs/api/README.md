@@ -7,6 +7,7 @@
 ## Modules
 - Identity: đăng ký, đăng nhập, phân quyền
 - Court: tìm kiếm sân, chi tiết sân, quản lý lịch hoạt động, bảng giá, đóng sân và ảnh sân
+- Booking: truy vấn lịch sử booking của customer hiện tại
 - Upload: luồng upload ảnh trực tiếp qua Cloudflare R2, xác thực ảnh và cấp quyền truy cập
 
 ## Related Documentation
@@ -14,4 +15,5 @@
 - [Error Codes](./error-codes.md)
 - [Identity](./modules/identity-api.md)
 - [Court](./modules/court-api.md)
+- [Booking](./modules/booking-api.md)
 - [Upload](./modules/upload-api.md)

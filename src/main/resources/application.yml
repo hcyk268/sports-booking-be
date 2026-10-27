@@ -35,6 +35,14 @@ management:
       show-details: never
 
 app:
+  booking:
+    zone-id: ${BOOKING_ZONE_ID:Asia/Ho_Chi_Minh}
+    hold:
+      duration: ${BOOKING_HOLD_DURATION:10m}
+      lock-ttl: ${BOOKING_LOCK_TTL:30s}
+      expiry-poll-interval: ${BOOKING_EXPIRY_POLL_INTERVAL:15s}
+      expiry-enabled: ${BOOKING_EXPIRY_ENABLED:true}
+
   cache:
     user-details-ttl: ${USER_DETAILS_CACHE_TTL:5m}
 

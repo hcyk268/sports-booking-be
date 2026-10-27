@@ -11,6 +11,8 @@ Machine-readable `code` values in error responses. See [API Conventions](./api-c
 | 400 | `INVALID_CLOSURE_TIME` | Closure start time must precede end time and times must use whole minutes |
 | 400 | `INVALID_COURT_IMAGE` | Upload a valid PNG or JPEG image, at most 6000 pixels per side and 20 million pixels |
 | 400 | `INVALID_COURT_SEARCH_FILTER` | Date is required for time or price filters; provide both startTime and endTime in whole minutes, start before end, and a non-negative ordered price range |
+| 400 | `INVALID_BOOKING_PAGINATION` | Page must be non-negative and size must be between 1 and 100 |
+| 400 | `INVALID_BOOKING_SLOTS` | Selected slots are invalid, overlapping, or not in the future |
 | 400 | `INVALID_CURRENT_PASSWORD` | Current password is incorrect |
 | 400 | `INVALID_OPERATING_HOURS` | Opening time must precede closing time, times must use whole minutes, and at least one slot must fit |
 | 400 | `INVALID_PAGINATION` | Page must be non-negative and size must be between 1 and 100 |
@@ -45,6 +47,7 @@ Machine-readable `code` values in error responses. See [API Conventions](./api-c
 | 404 | `COURT_CLOSURE_NOT_FOUND` | Court closure does not exist |
 | 404 | `COURT_IMAGE_NOT_FOUND` | Court image does not exist |
 | 404 | `COURT_NOT_FOUND` | Court does not exist |
+| 404 | `BOOKING_NOT_FOUND` | Booking does not exist or is not accessible to the current user |
 | 404 | `RESOURCE_NOT_FOUND` | No API resource exists for the requested path |
 | 404 | `UPLOAD_NOT_FOUND` | Upload does not exist |
 | 404 | `USER_NOT_FOUND` | User not found |
@@ -54,6 +57,11 @@ Machine-readable `code` values in error responses. See [API Conventions](./api-c
 | 409 | `COURT_IMAGE_LIMIT` | A court can have at most 10 images |
 | 409 | `COURT_PUBLISH_NOT_ALLOWED` | Only draft courts can be published |
 | 409 | `DATA_CONFLICT` | A database conflict occurred |
+| 409 | `BOOKING_SLOT_NOT_BOOKABLE` | Selected slot is not configured, priced, or open |
+| 409 | `BOOKING_SLOT_UNAVAILABLE` | Selected slot is occupied or currently locked by another booking request |
+| 409 | `BOOKING_CANCELLATION_NOT_ALLOWED` | Booking is already cancelled, expired, or completed |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | Key was previously used for a different booking selection |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | Another request with the same key is still being processed |
 | 409 | `EMAIL_ALREADY_EXISTS` | Email is already registered |
 | 409 | `OPTIMISTIC_LOCK_CONFLICT` | Resource was modified by another request; reload and retry |
 | 409 | `UPLOAD_CHANGED` | Object changed during verification; retry completion |
