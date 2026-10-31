@@ -44,7 +44,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                     where booking.customerId = :customerId
                       and (:status is null or booking.status = :status)
                       and (
-                            :rangeStart is null
+                            cast(:rangeStart as Instant) is null
                             or exists (
                                 select slot.id
                                 from BookingSlot slot
@@ -53,6 +53,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                                   and slot.endAt > :rangeStart
                             )
                       )
+                    order by booking.createdAt desc, booking.id desc
                     """,
             countQuery = """
                     select count(booking)
@@ -60,7 +61,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                     where booking.customerId = :customerId
                       and (:status is null or booking.status = :status)
                       and (
-                            :rangeStart is null
+                            cast(:rangeStart as Instant) is null
                             or exists (
                                 select slot.id
                                 from BookingSlot slot
@@ -93,7 +94,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                             )
                       )
                       and (
-                            :rangeStart is null
+                            cast(:rangeStart as Instant) is null
                             or exists (
                                 select dateSlot.id
                                 from BookingSlot dateSlot
@@ -102,6 +103,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                                   and dateSlot.endAt > :rangeStart
                             )
                       )
+                    order by booking.createdAt desc, booking.id desc
                     """,
             countQuery = """
                     select count(booking)
@@ -118,7 +120,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                             )
                       )
                       and (
-                            :rangeStart is null
+                            cast(:rangeStart as Instant) is null
                             or exists (
                                 select dateSlot.id
                                 from BookingSlot dateSlot
@@ -152,7 +154,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                             )
                       )
                       and (
-                            :rangeStart is null
+                            cast(:rangeStart as Instant) is null
                             or exists (
                                 select dateSlot.id
                                 from BookingSlot dateSlot
@@ -167,6 +169,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                             where unmanagedSlot.booking = booking
                               and unmanagedSlot.courtId not in :ownedCourtIds
                       )
+                    order by booking.createdAt desc, booking.id desc
                     """,
             countQuery = """
                     select count(booking)
@@ -183,7 +186,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                             )
                       )
                       and (
-                            :rangeStart is null
+                            cast(:rangeStart as Instant) is null
                             or exists (
                                 select dateSlot.id
                                 from BookingSlot dateSlot
@@ -229,11 +232,12 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     @Query(value = """
             select id from bookings
-            where status in ('HELD', 'PENDING_PAYMENT')
-              and hold_expires_at <= current_timestamp
+            where (status = 'HELD' and hold_expires_at <= :now)
+               or (status = 'PENDING_PAYMENT' and hold_expires_at <= :pendingCutoff)
             order by hold_expires_at, id
             limit :limit
             for update skip locked
             """, nativeQuery = true)
-    List<UUID> lockExpiredHoldIds(@Param("limit") int limit);
+    List<UUID> lockExpiredHoldIds(@Param("limit") int limit, @Param("now") Instant now,
+            @Param("pendingCutoff") Instant pendingCutoff);
 }

@@ -10,6 +10,7 @@ import dev.booking.sports.booking.domain.event.BookingOutboxMessageTypes;
 import dev.booking.sports.booking.domain.event.BookingSlotSnapshot;
 import dev.booking.sports.booking.domain.repository.BookingRepository;
 import dev.booking.sports.shared.outbox.OutboxService;
+import dev.booking.sports.shared.config.PaymentSettlementProperties;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,11 +20,12 @@ public class BookingExpiryService {
 
     private final BookingRepository bookingRepository;
     private final OutboxService outboxService;
+    private final PaymentSettlementProperties settlementProperties;
 
     @Transactional
     public int expireBatch(int limit) {
-        var ids = bookingRepository.lockExpiredHoldIds(limit);
         Instant now = Instant.now();
+        var ids = bookingRepository.lockExpiredHoldIds(limit, now, now.minus(settlementProperties.grace()));
         for (var id : ids) {
             var booking = bookingRepository.findWithSlotsById(id).orElseThrow();
             booking.expire(now);
