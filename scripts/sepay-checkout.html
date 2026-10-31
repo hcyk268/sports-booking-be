@@ -1,0 +1,25 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>SePay sandbox — BK-50dbf67a75a740aa8a7d27ea33</title>
+</head>
+<body onload="document.forms[0].submit()">
+  <p>Đang chuyển tới SePay sandbox…</p>
+  <form method="POST" action="https://pay-sandbox.sepay.vn/v1/checkout/init">
+    <input type="hidden" name="order_amount" value="420000" />
+    <input type="hidden" name="merchant" value="SP-TEST-VV439A96" />
+    <input type="hidden" name="currency" value="VND" />
+    <input type="hidden" name="operation" value="PURCHASE" />
+    <input type="hidden" name="order_description" value="Thanh toan dat san BK-50dbf67a75a740aa8a7d27ea33" />
+    <input type="hidden" name="order_invoice_number" value="PAYb45a98a273c240c28da045cdcbfd9cb3" />
+    <input type="hidden" name="customer_id" value="94080395-a877-4f76-9cd7-c82b8ace6423" />
+    <input type="hidden" name="payment_method" value="BANK_TRANSFER" />
+    <input type="hidden" name="success_url" value="http://localhost:3000/success?paymentId=9f633333-7a32-4e0b-adc4-cca33ab2eb5f" />
+    <input type="hidden" name="error_url" value="http://localhost:3000/error?paymentId=9f633333-7a32-4e0b-adc4-cca33ab2eb5f" />
+    <input type="hidden" name="cancel_url" value="http://localhost:3000/cancel?paymentId=9f633333-7a32-4e0b-adc4-cca33ab2eb5f" />
+    <input type="hidden" name="signature" value="mkgnDLWqUqXVP5YKvVJB2Me8j8SUsC6yw8/MMIpDBBE=" />
+    <noscript><button type="submit">Thanh toán SePay</button></noscript>
+  </form>
+</body>
+</html>
