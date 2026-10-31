@@ -35,6 +35,26 @@ management:
       show-details: never
 
 app:
+  payment:
+    settlement:
+      grace: ${PAYMENT_SETTLEMENT_GRACE:2m}
+    inbox:
+      enabled: ${PAYMENT_INBOX_ENABLED:true}
+      poll-interval: ${PAYMENT_INBOX_POLL_INTERVAL:1s}
+      batch-size: 25
+      lease-duration: 60s
+      retry-delay: 15s
+      max-attempts: 8
+    sepay:
+      enabled: ${SEPAY_ENABLED:false}
+      environment: ${SEPAY_ENVIRONMENT:SANDBOX}
+      merchant-id: ${SEPAY_MERCHANT_ID:}
+      secret-key: ${SEPAY_SECRET_KEY:}
+      success-url: ${SEPAY_SUCCESS_URL:}
+      error-url: ${SEPAY_ERROR_URL:}
+      cancel-url: ${SEPAY_CANCEL_URL:}
+      transaction-zone-id: ${SEPAY_TRANSACTION_ZONE_ID:Asia/Ho_Chi_Minh}
+
   booking:
     zone-id: ${BOOKING_ZONE_ID:Asia/Ho_Chi_Minh}
     hold:
