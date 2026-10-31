@@ -14,6 +14,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -150,6 +151,21 @@ public class GlobalExceptionHandler {
 				HttpStatus.BAD_REQUEST.value(),
 				"MISSING_PARAMETER",
 				"Required parameter '%s' is missing".formatted(exception.getParameterName()),
+				request.getRequestURI(),
+				null);
+		return ResponseEntity.badRequest().body(body);
+	}
+
+	@ExceptionHandler(MissingRequestHeaderException.class)
+	public ResponseEntity<ErrorResponse> handleMissingRequestHeader(
+			MissingRequestHeaderException exception,
+			HttpServletRequest request) {
+
+		ErrorResponse body = new ErrorResponse(
+				Instant.now(),
+				HttpStatus.BAD_REQUEST.value(),
+				"MISSING_HEADER",
+				"Required header '%s' is missing".formatted(exception.getHeaderName()),
 				request.getRequestURI(),
 				null);
 		return ResponseEntity.badRequest().body(body);

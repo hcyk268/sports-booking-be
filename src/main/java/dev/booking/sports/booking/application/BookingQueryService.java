@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +49,7 @@ public class BookingQueryService {
                                                     .atStartOfDay(bookingProperties.zoneId())
                                                     .toInstant();
 
-        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        PageRequest pageable = PageRequest.of(page, size);
 
         Page<Booking> result = bookingRepository.findCustomerBookings(
                 customerId,
@@ -81,7 +80,7 @@ public class BookingQueryService {
         Instant rangeStart = date == null ? null : date.atStartOfDay(bookingProperties.zoneId()).toInstant();
         Instant rangeEnd = date == null ? null : date.plusDays(1).atStartOfDay(bookingProperties.zoneId()).toInstant();
 
-        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        PageRequest pageable = PageRequest.of(page, size);
 
         Page<Booking> result;
         if (viewer.hasRole(BookingActorRole.ADMIN)) {

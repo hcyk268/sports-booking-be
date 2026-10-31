@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 
 import dev.booking.sports.booking.api.dto.request.CreateBookingHoldRequest;
@@ -29,6 +30,7 @@ import dev.booking.sports.booking.api.dto.response.BookingResponse;
 import dev.booking.sports.booking.api.error.BookingErrorCode;
 import dev.booking.sports.booking.domain.enums.BookingSlotStatus;
 import dev.booking.sports.booking.domain.enums.BookingStatus;
+import dev.booking.sports.booking.domain.repository.BookingRepository;
 import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 
@@ -47,6 +49,9 @@ class BookingCreateDatabaseTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private BookingRepository bookingRepository;
 
     private UUID ownerId;
     private UUID firstCustomerId;
@@ -105,6 +110,41 @@ class BookingCreateDatabaseTest {
         jdbc.update("delete from courts where id = ?", courtId);
         jdbc.update("delete from users where id in (?, ?, ?)",
                 ownerId, firstCustomerId, secondCustomerId);
+    }
+
+    @Test
+    void listsBookingsWithAndWithoutDateFiltersAndCountsAllPages() {
+        BookingResponse first = createService.createBooking(
+                firstCustomerId, "query-first", request(slot(8, 10)));
+        BookingResponse second = createService.createBooking(
+                firstCustomerId, "query-second", request(slot(10, 12)));
+        var pageable = PageRequest.of(0, 1);
+        var start = date.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        var end = date.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+
+        // A full first page forces execution of the count query as well.
+        for (boolean filterByDate : List.of(false, true)) {
+            var rangeStart = filterByDate ? start : null;
+            var rangeEnd = filterByDate ? end : null;
+            var customerPage = bookingRepository.findCustomerBookings(
+                    firstCustomerId, null, rangeStart, rangeEnd, pageable);
+            var adminPage = bookingRepository.findBookings(
+                    firstCustomerId, null, null, rangeStart, rangeEnd, pageable);
+            var providerPage = bookingRepository.findProviderBookings(
+                    Set.of(courtId), null, null, null, rangeStart, rangeEnd, pageable);
+            for (var result : List.of(customerPage, adminPage, providerPage)) {
+                assertThat(result.getTotalElements()).isEqualTo(2);
+                assertThat(result.getContent()).hasSize(1);
+                assertThat(result.getContent().getFirst().getId()).isIn(first.id(), second.id());
+            }
+        }
+
+        assertThat(bookingRepository.findCustomerBookings(
+                firstCustomerId, null, end, end.plusSeconds(86400), pageable)).isEmpty();
+        assertThat(bookingRepository.findCustomerBookings(
+                firstCustomerId, BookingStatus.CONFIRMED, null, null, pageable)).isEmpty();
+        assertThat(bookingRepository.findProviderBookings(
+                Set.of(UUID.randomUUID()), firstCustomerId, null, null, null, null, pageable)).isEmpty();
     }
 
     @Test
@@ -189,6 +229,24 @@ class BookingCreateDatabaseTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from outbox_events where aggregate_id = ?",
                 Integer.class, first.id().toString())).isEqualTo(2);
+    }
+
+    @Test
+    void pendingPaymentHoldWaitsForSettlementGraceBeforeReleasingSlots() {
+        BookingResponse held = createService.createBooking(
+                firstCustomerId, "pending-payment-grace", request(slot(8, 10)));
+        jdbc.update("update bookings set status='PENDING_PAYMENT', hold_expires_at=now()-interval '30 seconds' where id=?",
+                held.id());
+        jdbc.update("update booking_slots set status='PENDING_PAYMENT' where booking_id=?", held.id());
+
+        assertThat(expiryService.expireBatch(25)).isZero();
+        assertThat(jdbc.queryForObject("select status from bookings where id=?", String.class, held.id()))
+                .isEqualTo("PENDING_PAYMENT");
+
+        jdbc.update("update bookings set hold_expires_at=now()-interval '3 minutes' where id=?", held.id());
+        assertThat(expiryService.expireBatch(25)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select status from booking_slots where booking_id=?", String.class, held.id()))
+                .isEqualTo("EXPIRED");
     }
 
     @Test
