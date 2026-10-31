@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import dev.booking.sports.payment.domain.enums.*;
 import dev.booking.sports.payment.domain.model.PaymentAttempt.CheckoutField;
-import dev.booking.sports.payment.infrastructure.inbox.PaymentWebhookInbox;
 import dev.booking.sports.shared.persistence.CreatableEntity;
 import dev.booking.sports.shared.persistence.BaseEntity;
 
