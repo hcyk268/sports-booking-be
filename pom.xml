@@ -34,7 +34,7 @@
 		<sendgrid.version>4.10.3</sendgrid.version>
 		<aws-sdk.version>2.29.52</aws-sdk.version>
 		<httpclient4.version>4.5.14</httpclient4.version>
-		<testcontainers.version>1.21.0</testcontainers.version>
+		<testcontainers.version>1.21.4</testcontainers.version>
 		<test.excludedGroups>integration</test.excludedGroups>
 		<jacoco.version>0.8.13</jacoco.version>
 		<jacoco.line.minimum>0.15</jacoco.line.minimum>
