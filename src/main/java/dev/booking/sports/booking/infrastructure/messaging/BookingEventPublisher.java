@@ -44,10 +44,10 @@ public class BookingEventPublisher {
                                 + " for routing key "
                                 + message.eventType());
             }
-            if (confirm == null || !confirm.isAck()) {
+            if (confirm == null || !confirm.ack()) {
                 String reason = confirm == null
                         ? "no confirm received"
-                        : confirm.getReason();
+                        : confirm.reason();
                 throw new AmqpException(
                         "Broker nacked booking event "
                                 + message.eventId()
