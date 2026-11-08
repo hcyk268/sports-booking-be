@@ -116,8 +116,12 @@ public class User extends BaseEntity {
 	}
 
 	public void replaceRoles(Set<Role> roles) {
-		userRoles.clear();
-		roles.forEach(this::assignRole);
+		Set<String> requestedCodes = roles.stream().map(Role::getCode).collect(Collectors.toSet());
+		userRoles.removeIf(assignment -> !requestedCodes.contains(assignment.getRole().getCode()));
+		Set<String> retainedCodes = roleCodes();
+		roles.stream()
+				.filter(role -> !retainedCodes.contains(role.getCode()))
+				.forEach(this::assignRole);
 	}
 
 	public void lock() {

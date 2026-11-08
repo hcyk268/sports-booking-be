@@ -36,6 +36,8 @@ import dev.booking.sports.shared.outbox.OutboxService;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -51,6 +53,7 @@ public class UserService {
 	private final AuthSessionService sessionService;
 	private final OutboxService outboxService;
 	private final FrontendProperties frontendProperties;
+	private final EntityManager entityManager;
 
 	@Transactional
 	public UserSummaryResponse create(CreateUserRequest request) {
@@ -134,6 +137,8 @@ public class UserService {
 		User user = requireUserForMutation(id);
 		assertExpectedVersion(user, request.version());
 		Set<Role> roles = resolveRoles(request.roleCodes());
+		// The inverse collection does not advance the user version on its own.
+		entityManager.lock(user, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
 		user.replaceRoles(roles);
 		User saved = userRepository.saveAndFlush(user);
 		userDetailsService.evict(user.getEmail());
@@ -193,7 +198,7 @@ public class UserService {
 	}
 
 	private User requireUserForMutation(UUID id) {
-		return userRepository.findByIdWithRolesAndPermissionsForMutation(id)
+		return userRepository.findByIdForMutation(id)
 				.orElseThrow(() -> new ApiException(AuthErrorCode.USER_NOT_FOUND));
 	}
 

@@ -46,8 +46,12 @@ public class Role extends CreatableEntity {
 	private Set<RolePermission> rolePermissions = new HashSet<>();
 
 	public void replacePermissions(Set<Permission> permissions) {
-		rolePermissions.clear();
-		permissions.forEach(permission -> rolePermissions.add(RolePermission.of(this, permission)));
+		Set<String> requestedCodes = permissions.stream().map(Permission::getCode).collect(Collectors.toSet());
+		rolePermissions.removeIf(assignment -> !requestedCodes.contains(assignment.getPermission().getCode()));
+		Set<String> retainedCodes = permissionCodes();
+		permissions.stream()
+				.filter(permission -> !retainedCodes.contains(permission.getCode()))
+				.forEach(permission -> rolePermissions.add(RolePermission.of(this, permission)));
 	}
 
 	public Set<String> permissionCodes() {
