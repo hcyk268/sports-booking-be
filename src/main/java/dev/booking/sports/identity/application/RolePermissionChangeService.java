@@ -26,6 +26,8 @@ import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 import dev.booking.sports.shared.outbox.OutboxService;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -41,6 +43,7 @@ public class RolePermissionChangeService {
 	private final OutboxService outboxService;
 	private final AuthSessionService sessionService;
 	private final ApplicationUserDetailsService userDetailsService;
+	private final EntityManager entityManager;
 
 	@Transactional
 	public RolePermissionChangeRequestResponse requestChange(
@@ -83,13 +86,14 @@ public class RolePermissionChangeService {
 		Set<String> permissionCodes = policy.normalizePermissionCodes(request.permissionCodes());
 		assertPendingMatches(actorUserId, normalizedRoleCode, permissionCodes);
 		policy.assertRolePermissionsChangeAllowed(normalizedRoleCode, permissionCodes);
-		Role role = requireRoleWithPermissions(normalizedRoleCode);
+		Role role = requireRoleForMutation(normalizedRoleCode);
 		assertExpectedVersion(role, request.version());
+		Set<Permission> permissions = resolvePermissions(permissionCodes);
 
 		otpService.verify(OtpPurpose.ROLE_PERMISSION_CHANGE, actorUserId, normalizedRoleCode, request.otp());
 
-		Set<Permission> permissions = resolvePermissions(permissionCodes);
-
+		// The inverse collection does not advance the role version on its own.
+		entityManager.lock(role, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
 		role.replacePermissions(permissions);
 		Role saved = roleRepository.saveAndFlush(role);
 
@@ -112,8 +116,8 @@ public class RolePermissionChangeService {
 				.orElseThrow(() -> new ApiException(AuthErrorCode.ROLE_NOT_FOUND));
 	}
 
-	private Role requireRoleWithPermissions(String roleCode) {
-		return roleRepository.findByCodeWithPermissionsForMutation(roleCode)
+	private Role requireRoleForMutation(String roleCode) {
+		return roleRepository.findByCodeForMutation(roleCode)
 				.orElseThrow(() -> new ApiException(AuthErrorCode.ROLE_NOT_FOUND));
 	}
 

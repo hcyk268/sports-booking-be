@@ -35,12 +35,8 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
 			""")
 	Optional<Role> findByCodeWithPermissions(@Param("code") String code);
 
-	@Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
-	@Query("""
-			SELECT DISTINCT r FROM Role r
-			LEFT JOIN FETCH r.rolePermissions rp
-			LEFT JOIN FETCH rp.permission
-			WHERE r.code = :code
-			""")
-	Optional<Role> findByCodeWithPermissionsForMutation(@Param("code") String code);
+	// Lock the versioned role only; the permission rows have no version.
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT r FROM Role r WHERE r.code = :code")
+	Optional<Role> findByCodeForMutation(@Param("code") String code);
 }

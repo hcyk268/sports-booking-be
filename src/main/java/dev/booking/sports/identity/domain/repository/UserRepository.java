@@ -45,16 +45,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			""")
 	Optional<User> findByIdWithRolesAndPermissions(@Param("id") UUID id);
 
-	@Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
-	@Query("""
-			SELECT DISTINCT u FROM User u
-			LEFT JOIN FETCH u.userRoles ur
-			LEFT JOIN FETCH ur.role r
-			LEFT JOIN FETCH r.rolePermissions rp
-			LEFT JOIN FETCH rp.permission
-			WHERE u.id = :id
-			""")
-	Optional<User> findByIdWithRolesAndPermissionsForMutation(@Param("id") UUID id);
+	// Lock the versioned user without locking its roles or their permissions.
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT u FROM User u WHERE u.id = :id")
+	Optional<User> findByIdForMutation(@Param("id") UUID id);
 
 	@EntityGraph(attributePaths = {
 			"userRoles",
