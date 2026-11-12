@@ -52,7 +52,9 @@ public class SendGridEmailSender implements EmailSender {
 
 			if (response.getStatusCode() < 200 || response.getStatusCode() > 299) {
 				throw new EmailDeliveryException("SendGrid rejected the message with status %d: %s"
-						.formatted(response.getStatusCode(), response.getBody()));
+						.formatted(response.getStatusCode(), response.getBody()),
+						response.getStatusCode() == 408 || response.getStatusCode() == 429
+								|| response.getStatusCode() >= 500);
 			}
 		}
 		catch (IOException exception) {

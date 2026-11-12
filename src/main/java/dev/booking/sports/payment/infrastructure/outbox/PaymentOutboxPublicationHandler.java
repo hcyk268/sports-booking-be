@@ -1,7 +1,8 @@
 package dev.booking.sports.payment.infrastructure.outbox;
 
 import dev.booking.sports.payment.infrastructure.messaging.PaymentEventMessage;
-import dev.booking.sports.payment.infrastructure.messaging.PaymentEventPublisher;
+import dev.booking.sports.shared.messaging.ConfirmedRabbitPublisher;
+import dev.booking.sports.payment.infrastructure.messaging.PaymentRabbitConfig;
 import org.springframework.stereotype.Component;
 import dev.booking.sports.payment.domain.event.*;
 import dev.booking.sports.shared.outbox.*;
@@ -13,7 +14,7 @@ import tools.jackson.databind.ObjectMapper;
 public class PaymentOutboxPublicationHandler implements OutboxPublicationHandler {
 
     private final ObjectMapper mapper;
-    private final PaymentEventPublisher publisher;
+    private final ConfirmedRabbitPublisher publisher;
 
     @Override
     public boolean supports(String type) {
@@ -31,7 +32,7 @@ public class PaymentOutboxPublicationHandler implements OutboxPublicationHandler
         } else {
             mapper.readValue(event.getPayload(), PaymentReviewRequiredEvent.class);
         }
-        publisher.publish(new PaymentEventMessage(event.getEventId(), event.getAggregateType(),
-                event.getAggregateId(), event.getEventType(), event.getEventVersion(), mapper.readTree(event.getPayload())));
+        publisher.publish(PaymentRabbitConfig.EXCHANGE, event.getEventType(), new PaymentEventMessage(event.getEventId(), event.getAggregateType(),
+                event.getAggregateId(), event.getEventType(), event.getEventVersion(), mapper.readTree(event.getPayload())), event.getEventId().toString());
     }
 }

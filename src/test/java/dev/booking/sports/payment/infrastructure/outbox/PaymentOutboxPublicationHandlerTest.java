@@ -9,20 +9,21 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import dev.booking.sports.payment.domain.event.*;
 import dev.booking.sports.payment.infrastructure.messaging.PaymentEventMessage;
-import dev.booking.sports.payment.infrastructure.messaging.PaymentEventPublisher;
+import dev.booking.sports.shared.messaging.ConfirmedRabbitPublisher;
+import dev.booking.sports.payment.infrastructure.messaging.PaymentRabbitConfig;
 import dev.booking.sports.shared.outbox.OutboxEvent;
 import tools.jackson.databind.ObjectMapper;
 
 class PaymentOutboxPublicationHandlerTest {
-    private final PaymentEventPublisher publisher = mock(PaymentEventPublisher.class);
+    private final ConfirmedRabbitPublisher publisher = mock(ConfirmedRabbitPublisher.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private final PaymentOutboxPublicationHandler handler = new PaymentOutboxPublicationHandler(mapper, publisher);
 
     @Test void delegatesSucceededEnvelopeWithStableEventId() throws Exception {
         var event = event();
         handler.publish(event);
-        verify(publisher).publish(new PaymentEventMessage(event.getEventId(), event.getAggregateType(),
-                event.getAggregateId(), event.getEventType(), event.getEventVersion(), mapper.readTree(event.getPayload())));
+        verify(publisher).publish(PaymentRabbitConfig.EXCHANGE, event.getEventType(), new PaymentEventMessage(event.getEventId(), event.getAggregateType(),
+                event.getAggregateId(), event.getEventType(), event.getEventVersion(), mapper.readTree(event.getPayload())), event.getEventId().toString());
     }
 
     @Test void delegatesReviewRequiredEnvelope() throws Exception {
@@ -33,8 +34,8 @@ class PaymentOutboxPublicationHandlerTest {
 
         handler.publish(event);
 
-        verify(publisher).publish(new PaymentEventMessage(event.getEventId(), event.getAggregateType(),
-                event.getAggregateId(), event.getEventType(), event.getEventVersion(), mapper.readTree(event.getPayload())));
+        verify(publisher).publish(PaymentRabbitConfig.EXCHANGE, event.getEventType(), new PaymentEventMessage(event.getEventId(), event.getAggregateType(),
+                event.getAggregateId(), event.getEventType(), event.getEventVersion(), mapper.readTree(event.getPayload())), event.getEventId().toString());
     }
 
     @Test void invalidContractNeverReachesPublisher() {

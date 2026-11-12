@@ -16,7 +16,7 @@ public class OutboxSchedulingConfig {
 
 	private final OutboxRelay outboxRelay;
 
-	@Scheduled(fixedDelayString = "${app.outbox.poll-interval:1s}")
+	@Scheduled(fixedDelayString = "${app.outbox.poll-interval:1s}", scheduler = "outboxScheduler")
 	public void dispatchPendingMessages() {
 		outboxRelay.dispatchPendingMessages();
 	}

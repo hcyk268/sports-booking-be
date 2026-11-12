@@ -24,6 +24,21 @@ class OutboxServiceIntegrationTest extends BaseIntegrationTest {
 	private OutboxRepository outboxRepository;
 
 	@Test
+	void replayResetsOnlyFailedEventsAndKeepsTheSameEventId() {
+		var event = new OutboxEvent("TEST", UUID.randomUUID().toString(), "test.event", 1, "{}");
+		event.recordFailure("broker down", 1, java.time.Instant.now());
+		outboxRepository.saveAndFlush(event);
+		UUID id = event.getEventId();
+		assertThat(outboxRepository.replayFailed(id)).isEqualTo(1);
+		assertThat(outboxRepository.replayFailed(id)).isZero();
+		var replayed = outboxRepository.findById(id).orElseThrow();
+		assertThat(replayed.getStatus()).isEqualTo(OutboxStatus.PENDING);
+		assertThat(replayed.getAttempts()).isZero();
+		assertThat(replayed.getLastError()).isNull();
+		assertThat(replayed.getEventId()).isEqualTo(id);
+	}
+
+	@Test
 	void enqueue_persistsPendingEventWithJsonPayload() {
 		UUID userId = UUID.fromString("66666666-6666-6666-6666-666666666666");
 		var payload = new EmailVerificationRequestedEvent(

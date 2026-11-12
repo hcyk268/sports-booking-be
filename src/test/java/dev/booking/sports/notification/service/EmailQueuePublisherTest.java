@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 import java.time.Duration;
+import dev.booking.sports.shared.messaging.ConfirmedRabbitPublisher;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
@@ -37,9 +40,8 @@ class EmailQueuePublisherTest {
 
 	@BeforeEach
 	void setUp() {
-		emailQueuePublisher = new EmailQueuePublisher(
-				rabbitTemplate,
-				new RabbitMQProperties(Duration.ofSeconds(5)));
+		emailQueuePublisher = new EmailQueuePublisher(new ConfirmedRabbitPublisher(
+				rabbitTemplate, new RabbitMQProperties(Duration.ofSeconds(5))));
 	}
 
 	@Test
@@ -80,6 +82,23 @@ class EmailQueuePublisherTest {
 
 		assertThatThrownBy(() -> emailQueuePublisher.publish(message))
 				.isInstanceOf(AmqpException.class)
+				.hasMessageContaining(OUTBOX_EVENT_ID.toString());
+	}
+
+	@Test
+	void publish_whenReturnedDespiteAck_rejectsUnroutableEmail() {
+		doAnswer(invocation -> {
+			CorrelationData correlation = invocation.getArgument(3);
+			correlation.setReturned(new ReturnedMessage(new Message(new byte[0]), 312, "NO_ROUTE",
+					NotificationRabbitConfig.EXCHANGE, NotificationRabbitConfig.EMAIL_ROUTING_KEY));
+			correlation.getFuture().complete(new CorrelationData.Confirm(true, null));
+			return null;
+		}).when(rabbitTemplate).convertAndSend(any(String.class), any(String.class),
+				any(Object.class), any(CorrelationData.class));
+
+		assertThatThrownBy(() -> emailQueuePublisher.publish(queueMessage("Subject")))
+				.isInstanceOf(AmqpException.class)
+				.hasMessageContaining("unroutable")
 				.hasMessageContaining(OUTBOX_EVENT_ID.toString());
 	}
 

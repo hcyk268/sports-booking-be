@@ -12,6 +12,11 @@ spring:
   jpa:
     open-in-view: false
 
+  rabbitmq:
+    listener:
+      simple:
+        acknowledge-mode: manual
+
 server:
   port: ${SERVER_PORT:8080}
 
@@ -70,6 +75,8 @@ app:
     poll-interval: 1s
     batch-size: 25
     max-retries: 10
+    retry-initial-delay: ${OUTBOX_RETRY_INITIAL_DELAY:5s}
+    retry-max-delay: ${OUTBOX_RETRY_MAX_DELAY:5m}
     relay-enabled: true
 
   rabbitmq:

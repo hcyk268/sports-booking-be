@@ -1,9 +1,10 @@
-package dev.booking.sports.payment.infrastructure.messaging;
+package dev.booking.sports.shared.messaging;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.time.Duration;
+import dev.booking.sports.shared.messaging.ConfirmedRabbitPublisher;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
@@ -14,13 +15,11 @@ import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
-import dev.booking.sports.payment.domain.event.PaymentOutboxMessageTypes;
 import dev.booking.sports.shared.config.RabbitMQProperties;
-import tools.jackson.databind.ObjectMapper;
 
-class PaymentEventPublisherTest {
+class ConfirmedRabbitPublisherTest {
     private final RabbitTemplate rabbit = mock(RabbitTemplate.class);
-    private final PaymentEventPublisher publisher = new PaymentEventPublisher(rabbit,
+    private final ConfirmedRabbitPublisher publisher = new ConfirmedRabbitPublisher(rabbit,
             new RabbitMQProperties(Duration.ofMillis(50)));
 
     @Test void routesEnvelopeWithStableEventIdAndWaitsForBrokerAck() throws Exception {
@@ -32,7 +31,7 @@ class PaymentEventPublisherTest {
             return null;
         }).when(rabbit).convertAndSend(eq("sports.payment"), eq("payment.succeeded"), eq(message), any(CorrelationData.class));
 
-        publisher.publish(message);
+        publish(message);
 
         verify(rabbit).convertAndSend(eq("sports.payment"), eq("payment.succeeded"), eq(message), any(CorrelationData.class));
     }
@@ -44,7 +43,7 @@ class PaymentEventPublisherTest {
             return null;
         }).when(rabbit).convertAndSend(anyString(), anyString(), any(Object.class), any(CorrelationData.class));
 
-        assertThatThrownBy(() -> publisher.publish(message())).isInstanceOf(AmqpException.class);
+        assertThatThrownBy(() -> publish(message())).isInstanceOf(AmqpException.class);
     }
 
     @Test void unroutableEventIsNotAcceptedAsPublished() {
@@ -55,26 +54,26 @@ class PaymentEventPublisherTest {
             return null;
         }).when(rabbit).convertAndSend(anyString(), anyString(), any(Object.class), any(CorrelationData.class));
 
-        assertThatThrownBy(() -> publisher.publish(message())).isInstanceOf(AmqpException.class);
+        assertThatThrownBy(() -> publish(message())).isInstanceOf(AmqpException.class);
     }
 
     @Test void missingBrokerConfirmTimesOut() {
-        assertThatThrownBy(() -> publisher.publish(message())).isInstanceOf(TimeoutException.class);
+        assertThatThrownBy(() -> publish(message())).isInstanceOf(AmqpException.class).hasCauseInstanceOf(TimeoutException.class);
     }
 
     @Test void interruptedConfirmWaitPreservesInterruptFlag() {
         Thread.currentThread().interrupt();
         try {
-            assertThatThrownBy(() -> publisher.publish(message())).isInstanceOf(InterruptedException.class);
+            assertThatThrownBy(() -> publish(message())).isInstanceOf(AmqpException.class).hasCauseInstanceOf(InterruptedException.class);
             assertThat(Thread.currentThread().isInterrupted()).isTrue();
         } finally {
             Thread.interrupted();
         }
     }
 
-    private PaymentEventMessage message() {
-        return new PaymentEventMessage(UUID.randomUUID(), "PAYMENT", UUID.randomUUID().toString(),
-                PaymentOutboxMessageTypes.SUCCEEDED, PaymentOutboxMessageTypes.VERSION,
-                new ObjectMapper().readTree("{\"paymentId\":\"payment-id\"}"));
+    private void publish(TestEvent message) {
+        publisher.publish("sports.payment", "payment.succeeded", message, message.eventId().toString());
     }
+    private TestEvent message() { return new TestEvent(UUID.randomUUID()); }
+    private record TestEvent(UUID eventId) {}
 }
