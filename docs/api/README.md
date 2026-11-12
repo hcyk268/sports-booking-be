@@ -9,6 +9,7 @@
 - Court: tìm kiếm sân, chi tiết sân, quản lý lịch hoạt động, bảng giá, đóng sân và ảnh sân
 - Booking: truy vấn lịch sử booking của customer hiện tại
 - Payment: tạo checkout SePay cho booking; các endpoint còn lại đang là khung
+- Notification: lịch sử thông báo, số chưa đọc và đánh dấu đã đọc cho người dùng hiện tại
 - Upload: luồng upload ảnh trực tiếp qua Cloudflare R2, xác thực ảnh và cấp quyền truy cập
 
 ## Related Documentation
@@ -18,4 +19,5 @@
 - [Court](./modules/court-api.md)
 - [Booking](./modules/booking-api.md)
 - [Payment](./modules/payment-api.md)
+- [Notification](./modules/notification-api.md)
 - [Upload](./modules/upload-api.md)

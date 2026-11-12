@@ -65,11 +65,11 @@ flowchart LR
 
 **Boundary rules:** booking owns reservation state and occupancy. Court continues to own operating hours, price rules, closures, and whether a court is bookable. Redis locks each selected slot in a stable key order for short-lived contention control; PostgreSQL's exclusion constraint remains the final overlap guard. Customer and idempotency key are uniquely constrained in PostgreSQL. A scheduled worker expires holds across instances with `FOR UPDATE SKIP LOCKED`. Payment must not update booking tables directly; it should drive validated booking transitions through an explicit contract or event.
 
-### `notification` — outbound email
+### `notification` — user inbox and outbound email
 
-**Owns:** mapping supported identity outbox messages to email templates, RabbitMQ publication and consumption, SendGrid delivery, and processed-delivery deduplication. Its persistent model includes `processed_email_deliveries`; the outbox table itself belongs to `shared`.
+**Owns:** persisted user notifications, inbox queries and read state, mapping supported identity outbox messages to email templates, RabbitMQ publication and consumption, SendGrid delivery, and processed-delivery deduplication. Its persistent model includes `notifications` and `processed_email_deliveries`; the outbox table itself belongs to `shared`.
 
-**HTTP API:** none.
+**HTTP API:** `/api/v1/notifications` lists the authenticated user's inbox, `/unread-count` counts unread rows, `/{id}/read` marks one owned notification as read, and `/read-all` marks owned unread rows as read. All four routes require authentication; ADMIN users receive no inbox override. Lists use standard `page`/`size` pagination, ordered by creation time and ID descending. Missing and inaccessible notification IDs return the same 404. Read updates are atomic and preserve previously stored read times. See [Notification API](../api/modules/notification-api.md).
 
 **In-process API:** notification consumes `identity :: events` payload types and implements the shared `OutboxPublicationHandler` contract through `IdentityEmailOutboxPublicationHandler`. It publishes `EmailQueueMessage` to RabbitMQ and consumes that message internally. No feature module currently calls a notification service directly, and notification exposes no named Spring Modulith interface of its own.
 
