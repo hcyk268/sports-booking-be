@@ -10,7 +10,8 @@ import dev.booking.sports.booking.domain.event.BookingExpiredEvent;
 import dev.booking.sports.booking.domain.event.BookingHeldEvent;
 import dev.booking.sports.booking.domain.event.BookingOutboxMessageTypes;
 import dev.booking.sports.booking.infrastructure.messaging.BookingEventMessage;
-import dev.booking.sports.booking.infrastructure.messaging.BookingEventPublisher;
+import dev.booking.sports.shared.messaging.ConfirmedRabbitPublisher;
+import dev.booking.sports.booking.infrastructure.messaging.BookingRabbitConfig;
 import dev.booking.sports.shared.outbox.OutboxEvent;
 import dev.booking.sports.shared.outbox.OutboxPublicationHandler;
 
@@ -22,7 +23,7 @@ public class BookingOutboxPublicationHandler
         implements OutboxPublicationHandler {
 
     private final ObjectMapper objectMapper;
-    private final BookingEventPublisher eventPublisher;
+    private final ConfirmedRabbitPublisher eventPublisher;
 
     @Override
     public boolean supports(String eventType) {
@@ -57,13 +58,13 @@ public class BookingOutboxPublicationHandler
                     "Unsupported booking event type: " + message.getEventType());
         }
 
-        eventPublisher.publish(new BookingEventMessage(
+        eventPublisher.publish(BookingRabbitConfig.EVENT_EXCHANGE, message.getEventType(), new BookingEventMessage(
                 message.getEventId(),
                 message.getAggregateType(),
                 message.getAggregateId(),
                 message.getEventType(),
                 message.getEventVersion(),
-                objectMapper.readTree(message.getPayload())));
+                objectMapper.readTree(message.getPayload())), message.getEventId().toString());
     }
 
     private void validateContract(OutboxEvent message) {

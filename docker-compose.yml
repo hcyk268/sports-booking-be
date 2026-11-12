@@ -88,6 +88,30 @@ services:
       - sports-network
 
 
+  # Applies mutable limits to existing queues without deleting any backlog.
+  rabbitmq-policy:
+    image: curlimages/curl:8.12.1
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-sports}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-sports}
+      RABBITMQ_VHOST_URL_ENCODED: ${RABBITMQ_VHOST_URL_ENCODED:-%2F}
+    volumes:
+      - ./docker/rabbitmq/backlog-policy.json:/policy.json:ro
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        curl --fail --silent --show-error
+        --user "$${RABBITMQ_USERNAME}:$${RABBITMQ_PASSWORD}"
+        --header 'Content-Type: application/json' --request PUT
+        --data-binary @/policy.json
+        "http://rabbitmq:15672/api/policies/$${RABBITMQ_VHOST_URL_ENCODED}/sports-booking-bounded"
+    networks:
+      - sports-network
+
 volumes:
   sports_postgres:
   redis_data:

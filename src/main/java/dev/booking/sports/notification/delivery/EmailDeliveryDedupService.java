@@ -14,13 +14,12 @@ public class EmailDeliveryDedupService {
 
 	private final ProcessedEmailDeliveryRepository repository;
 
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	public boolean tryAcquire(UUID outboxEventId) {
-		return repository.insertIfAbsent(outboxEventId) > 0;
-	}
-
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	public void release(UUID outboxEventId) {
-		repository.deleteById(outboxEventId);
+	@Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+	public boolean deliverOnce(UUID outboxEventId, Runnable send) {
+		if (repository.insertIfAbsent(outboxEventId) == 0) {
+			return false;
+		}
+		send.run();
+		return true;
 	}
 }

@@ -28,7 +28,8 @@ import dev.booking.sports.booking.domain.event.BookingHeldEvent;
 import dev.booking.sports.booking.domain.event.BookingOutboxMessageTypes;
 import dev.booking.sports.booking.domain.event.BookingSlotSnapshot;
 import dev.booking.sports.booking.infrastructure.messaging.BookingEventMessage;
-import dev.booking.sports.booking.infrastructure.messaging.BookingEventPublisher;
+import dev.booking.sports.shared.messaging.ConfirmedRabbitPublisher;
+import dev.booking.sports.booking.infrastructure.messaging.BookingRabbitConfig;
 import dev.booking.sports.shared.outbox.OutboxEvent;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,7 +45,7 @@ class BookingOutboxPublicationHandlerTest {
             Instant.parse("2026-10-25T08:00:00Z");
 
     @Mock
-    private BookingEventPublisher eventPublisher;
+    private ConfirmedRabbitPublisher eventPublisher;
 
     private ObjectMapper objectMapper;
     private BookingOutboxPublicationHandler handler;
@@ -83,13 +84,13 @@ class BookingOutboxPublicationHandlerTest {
 
         handler.publish(message);
 
-        verify(eventPublisher).publish(new BookingEventMessage(
+        verify(eventPublisher).publish(BookingRabbitConfig.EVENT_EXCHANGE, message.getEventType(), new BookingEventMessage(
                 message.getEventId(),
                 BookingOutboxMessageTypes.BOOKING_AGGREGATE_TYPE,
                 BOOKING_ID.toString(),
                 eventType,
                 BookingOutboxMessageTypes.EVENT_VERSION,
-                objectMapper.readTree(payload)));
+                objectMapper.readTree(payload)), message.getEventId().toString());
     }
 
     @Test

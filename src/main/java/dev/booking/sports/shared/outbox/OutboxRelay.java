@@ -60,7 +60,7 @@ public class OutboxRelay {
 			message.recordFailure(
 					"No OutboxPublicationHandler for event type " + message.getEventType(),
 					properties.maxRetries(),
-					nextAvailableAt());
+					nextAvailableAt(message));
 			log.error("Outbox event {} has no handler for type {}", message.getEventId(), message.getEventType());
 			return;
 		}
@@ -70,13 +70,16 @@ public class OutboxRelay {
 			message.markPublished(Instant.now());
 		}
 		catch (Exception exception) {
-			message.recordFailure(exception.toString(), properties.maxRetries(), nextAvailableAt());
+			message.recordFailure(exception.toString(), properties.maxRetries(), nextAvailableAt(message));
 			log.warn("Outbox event {} failed on attempt {}: {}",
 					message.getEventId(), message.getAttempts(), exception.getMessage(), exception);
+			if (message.getStatus() == OutboxStatus.FAILED) {
+				log.error("Outbox event {} exhausted retries; administrator replay required", message.getEventId());
+			}
 		}
 	}
 
-	private Instant nextAvailableAt() {
-		return Instant.now().plus(properties.pollInterval());
+	private Instant nextAvailableAt(OutboxEvent message) {
+		return Instant.now().plus(properties.retryDelay(message.getAttempts()));
 	}
 }

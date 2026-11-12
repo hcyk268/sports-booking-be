@@ -97,14 +97,15 @@ sequenceDiagram
         Relay->>DB: Mark event published
     end
     MQ->>Consumer: Deliver message
-    Consumer->>DB: Acquire delivery ID
+    Consumer->>DB: Insert delivery ID in transaction (unique constraint)
     Consumer->>SendGrid: Send email
-    Consumer->>MQ: Ack, or nack to dead-letter queue
+    Consumer->>DB: Commit on success; rollback on failure
+    Consumer->>MQ: Confirm retry/DLQ publication on failure; then ack
 ```
 
-The relay selects pending rows with `FOR UPDATE SKIP LOCKED`, routes each event through an `OutboxPublicationHandler`, waits for a RabbitMQ publisher confirm, and records publication or retry state. After the configured maximum attempts, the outbox event becomes `FAILED`. The email consumer uses the outbox event ID in `processed_email_deliveries` to suppress duplicate processing. A delivery exception releases that record and sends the message to `sports.notification.email.dlq` via a negative acknowledgement without requeueing.
+The relay selects pending rows with `FOR UPDATE SKIP LOCKED`, routes each event through an `OutboxPublicationHandler`, waits for a RabbitMQ publisher confirm, rejects returned/unroutable messages even when the broker acknowledges them, and records publication or retry state. Outbox failures use exponential backoff from 5 seconds up to 5 minutes. After the configured maximum attempts, the outbox event becomes `FAILED` and logs an error for operator action. Outbox polling uses its own scheduler; expiry, inbox and cleanup jobs use a separate scheduler pool. The email consumer inserts the outbox event ID into `processed_email_deliveries` and sends the email within the same database transaction. It acknowledges only after commit. Concurrent deliveries wait on the unique constraint, then skip a committed delivery or take over after rollback. A failed send rolls back the insert. Transient failures (network errors, HTTP 408/429/5xx, or database failures) are published with confirms to quorum retry queues with delays of 10 seconds, 1 minute and 5 minutes. Permanent failures, malformed messages and exhausted retries are published with confirms to `sports.notification.email.dlq`. The source is acknowledged only after the new publication is routed and confirmed. If forwarding fails, the source is requeued with a one-second pause to bound the failure loop. Retry queues use at-least-once dead-lettering back to the email exchange.
 
-This uses **at-least-once message transport with application-level deduplication**, not an end-to-end exactly-once email guarantee. A crash around broker publication, delivery-record acquisition, or a remote send can leave an ambiguous outcome; acquiring a deduplication record before the send also means some failures can suppress a later redelivery. Operators should inspect both failed outbox events and the email dead-letter queue; the application does not currently expose a replay API. Queue names and routing keys are defined in `NotificationRabbitConfig`.
+This uses **at-least-once message transport with application-level deduplication**, not an end-to-end exactly-once email guarantee. A crash before commit rolls back the delivery ID so redelivery can send again. If SendGrid accepts an email and the transaction subsequently fails or the process crashes before commit, redelivery can send a duplicate. The transaction holds a database connection while calling SendGrid, whose HTTP client has bounded connection and socket timeouts. Existing delivery IDs from the previous implementation remain treated as completed; ambiguous historical deliveries require operator investigation. Operators should inspect both failed outbox events and the email dead-letter queue; ADMIN-only replay endpoints are documented in [the RabbitMQ operations guide](../guides/rabbitmq-operations.md). Queue names and routing keys are defined in `NotificationRabbitConfig`.
 
 ## 6. Image upload and court gallery
 

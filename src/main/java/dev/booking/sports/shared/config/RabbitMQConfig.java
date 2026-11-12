@@ -6,6 +6,7 @@ import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RabbitMQConfig {
 
 	@Bean
+	@Primary
 	public JacksonJsonMessageConverter rabbitMessageConverter() {
 		DefaultClassMapper classMapper = new DefaultClassMapper();
 		classMapper.setTrustedPackages(
