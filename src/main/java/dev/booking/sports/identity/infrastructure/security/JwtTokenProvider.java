@@ -51,7 +51,8 @@ public class JwtTokenProvider {
 			String jti,
 			long tokenVersion,
 			Set<String> roles,
-			Set<String> permissions) {
+			Set<String> permissions,
+			Instant expiresAt) {
 	}
 
 	public Duration accessTokenTtl() {
@@ -118,6 +119,9 @@ public class JwtTokenProvider {
 		if (!expectedType.claimValue().equals(claims.get(CLAIM_TOKEN_TYPE, String.class))) {
 			throw new ApiException(AuthErrorCode.TOKEN_INVALID);
 		}
+		if (claims.getExpiration() == null) {
+			throw new ApiException(AuthErrorCode.TOKEN_INVALID);
+		}
 
 		return new ParsedToken(
 				parseUserId(claims.getSubject()),
@@ -125,7 +129,8 @@ public class JwtTokenProvider {
 				claims.getId(),
 				tokenVersionOf(claims),
 				stringSetClaimOf(claims, CLAIM_ROLES),
-				stringSetClaimOf(claims, CLAIM_PERMISSIONS));
+				stringSetClaimOf(claims, CLAIM_PERMISSIONS),
+				claims.getExpiration().toInstant());
 	}
 
 	private UUID parseUserId(String subject) {
