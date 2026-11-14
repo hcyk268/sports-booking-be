@@ -50,6 +50,8 @@ Machine-readable `code` values in error responses. See [API Conventions](./api-c
 | 404 | `COURT_NOT_FOUND` | Court does not exist |
 | 404 | `BOOKING_NOT_FOUND` | Booking does not exist or is not accessible to the current user |
 | 404 | `NOTIFICATION_NOT_FOUND` | Notification does not exist or does not belong to the current user |
+| 429 | `NOTIFICATION_STREAM_LIMIT` | Per-user or total local SSE connection limit reached |
+| 503 | `NOTIFICATION_STREAM_UNAVAILABLE` | SSE stream cannot be opened or sender capacity is unavailable |
 | 404 | `RESOURCE_NOT_FOUND` | No API resource exists for the requested path |
 | 404 | `UPLOAD_NOT_FOUND` | Upload does not exist |
 | 404 | `USER_NOT_FOUND` | User not found |
