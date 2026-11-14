@@ -41,6 +41,12 @@ management:
 
 app:
   notification:
+    realtime:
+      channel: ${spring.application.name}:${spring.profiles.active}:notification.changed
+      publisher-threads: 2
+      publisher-queue-capacity: 128
+      subscriber-threads: 2
+      subscriber-queue-capacity: 256
     sse:
       heartbeat-interval: 15s
       connection-timeout: 5m

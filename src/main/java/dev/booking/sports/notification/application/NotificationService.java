@@ -14,6 +14,8 @@ import dev.booking.sports.notification.domain.repository.NotificationRepository;
 import dev.booking.sports.shared.api.PageResponse;
 import dev.booking.sports.shared.exception.ApiException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
+import dev.booking.sports.notification.realtime.NotificationChangedEvent;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class NotificationService {
 
     private final NotificationRepository repository;
+    private final ApplicationEventPublisher events;
 
     @Transactional(readOnly = true)
     public PageResponse<NotificationResponse> list(UUID recipientId, int page, int size) {
@@ -39,14 +42,20 @@ public class NotificationService {
 
     @Transactional
     public NotificationResponse markRead(UUID recipientId, UUID notificationId) {
-        repository.markRead(notificationId, recipientId, Instant.now());
-        return repository.findByIdAndRecipientId(notificationId, recipientId)
+        int changed = repository.markRead(notificationId, recipientId, Instant.now());
+        var response = repository.findByIdAndRecipientId(notificationId, recipientId)
                 .map(NotificationResponse::from)
                 .orElseThrow(() -> new ApiException(NotificationErrorCode.NOTIFICATION_NOT_FOUND));
+        if (changed > 0) events.publishEvent(new NotificationChangedEvent(UUID.randomUUID(), recipientId,
+                NotificationChangedEvent.Action.READ, notificationId));
+        return response;
     }
 
     @Transactional
     public void markAllRead(UUID recipientId) {
-        repository.markAllRead(recipientId, Instant.now());
+        if (repository.markAllRead(recipientId, Instant.now()) > 0) {
+            events.publishEvent(new NotificationChangedEvent(UUID.randomUUID(), recipientId,
+                    NotificationChangedEvent.Action.READ_ALL, null));
+        }
     }
 }
