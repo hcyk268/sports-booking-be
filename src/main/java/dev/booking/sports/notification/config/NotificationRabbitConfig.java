@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class NotificationRabbitConfig {
-	@Bean
+	@Bean({ "rawEmailMessageConverter", "rawNotificationMessageConverter" })
 	public org.springframework.amqp.support.converter.MessageConverter rawEmailMessageConverter() {
 		// The listener owns decoding, including failures; do not deserialize in the adapter.
 		return new org.springframework.amqp.support.converter.MessageConverter() {
@@ -21,7 +21,7 @@ public class NotificationRabbitConfig {
 			@Override
 			public org.springframework.amqp.core.Message toMessage(Object value,
 					org.springframework.amqp.core.MessageProperties properties) {
-				throw new UnsupportedOperationException("Receive-only email converter");
+				throw new UnsupportedOperationException("Receive-only notification converter");
 			}
 		};
 	}

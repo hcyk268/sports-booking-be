@@ -23,6 +23,17 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     long countByRecipientIdAndReadAtIsNull(UUID recipientId);
 
+    @Modifying
+    @Query(value = """
+            INSERT INTO notifications (id, recipient_id, type, title, body, resource_type, resource_id, source_event_id)
+            VALUES (:id, :recipientId, :type, :title, :body, :resourceType, :resourceId, :sourceEventId)
+            ON CONFLICT ON CONSTRAINT uk_notifications_source_recipient_type DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(@Param("id") UUID id, @Param("recipientId") UUID recipientId,
+            @Param("type") String type, @Param("title") String title, @Param("body") String body,
+            @Param("resourceType") String resourceType, @Param("resourceId") UUID resourceId,
+            @Param("sourceEventId") UUID sourceEventId);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE Notification n SET n.readAt = :readAt
