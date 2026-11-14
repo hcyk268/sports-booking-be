@@ -22,8 +22,8 @@ For an existing Docker broker, apply/update the same limits without restarting i
 ```
 
 For a managed broker, apply the JSON policy using the provider's management tools.
-The policy matches only the application's booking/payment event queues and email
-delivery, retry and DLQ queues. Inspect effective queue policies when combining it
+The policy matches the application's booking/payment event queues, email queues,
+and booking-notification delivery, retry and DLQ queues. Inspect effective queue policies when combining it
 with existing policies; a higher-priority policy can override this policy.
 
 Limits are 10,000 ready messages or 256 MiB of ready message bodies per queue.
@@ -36,6 +36,39 @@ PostgreSQL outbox: monitor broker disk, queue depth and database storage as well
 Booking/payment queues retain events for consumers outside this repository. No
 consumer that discards events has been added. Each real logical consumer should
 own its durable queue/binding and deduplicate using the envelope `eventId`.
+
+## Booking notification consumer
+
+`sports.notification.booking` is a separate durable quorum queue bound to
+`sports.booking` for `booking.confirmed`, `booking.cancelled` and `booking.expired`.
+It does not drain `sports.booking.events`, which remains available for its existing
+logical consumers. New bindings receive future publications; existing messages in
+the legacy event queue are not backfilled automatically.
+
+The listener decodes the JSON body using a local envelope contract, ignoring Java
+type headers. It validates event version 1, aggregate type, payload and matching
+booking IDs, then stores a Vietnamese inbox notification for payload `customerId`.
+`INSERT ... ON CONFLICT DO NOTHING` makes duplicate and concurrent deliveries safe
+without clearing an already stored read time. The original delivery is acknowledged
+only after the database transaction commits.
+
+Processing/database failures retry through `sports.notification.booking.retry.1`,
+`.retry.2`, and `.retry.3` after 10 seconds, 1 minute and 5 minutes. Retry count is
+stored in `x-booking-notification-retry-count`. Malformed messages, unsupported
+contracts and exhausted retries go to `sports.notification.booking.dlq`.
+Forwarding uses a persistent copy and publisher confirms before acknowledging the
+source. If forwarding fails, the original is requeued after a one-second pause.
+Retry queues use quorum at-least-once dead-lettering to the notification exchange;
+the main queue also has an at-least-once DLQ fallback for broker dead-lettering.
+Queue lengths and bodies are bounded with reject-publish overflow. Main/DLQ limits
+are 10,000 messages / 256 MiB; retry queues cap bodies at 64 MiB. Queue arguments
+are immutable; changing them requires a planned migration.
+
+Monitor this DLQ separately from the email DLQ. The existing email replay endpoint
+does not replay booking notifications. After fixing the cause, use broker tooling
+to republish the preserved envelope to the main notification queue with its retry
+header reset to zero. Do not remove the DLQ source until republishing is confirmed.
+There is no application replay endpoint for this queue in this change.
 
 ## Email retry and recovery
 
@@ -100,6 +133,8 @@ Run focused unit/security tests and Docker-backed recovery tests:
 ```powershell
 .\mvnw.cmd '-Dtest=EmailConsumerTest,EmailConsumerAdapterTest,EmailQueuePublisherTest,EmailRecoveryServiceTest,OutboxRetryTest,MessagingAdminSecurityTest,ArchitectureTest' test
 .\mvnw.cmd -P integration '-Dtest=EmailDeliveryDedupServiceTest,EmailRecoveryIntegrationTest,OutboxServiceIntegrationTest' test
+.\mvnw.cmd '-Dtest=BookingNotificationConsumerTest,BookingNotificationHandlerTest,BookingNotificationRecoveryServiceTest,ArchitectureTest' test
+.\mvnw.cmd -P integration '-Dtest=BookingNotificationConsumerIntegrationTest' test
 ```
 
 The integration tests cover PostgreSQL rollback/concurrent delivery, atomic outbox

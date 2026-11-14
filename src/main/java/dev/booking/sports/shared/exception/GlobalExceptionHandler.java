@@ -48,7 +48,8 @@ public class GlobalExceptionHandler {
 				exception.getMessage(),
 				request.getRequestURI(),
 				null);
-		return ResponseEntity.status(errorCode.status()).body(body);
+		return ResponseEntity.status(errorCode.status())
+				.contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(body);
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)

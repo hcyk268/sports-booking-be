@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/fragments/layout :: layout(~{::main})}">
+<th:block th:fragment="main">
+    <p th:text="|Xin chào ${fullName},|">Xin chào,</p>
+    <h2 th:text="${title}">Thông báo đặt sân</h2>
+    <p th:text="${body}">Trạng thái đơn đặt sân đã thay đổi.</p>
+    <p>Mã đặt sân: <strong th:text="${bookingCode}"></strong></p>
+    <p>Giá trị đơn đặt sân: <strong th:text="|${amount} ${currency}|"></strong></p>
+    <div th:if="${!#lists.isEmpty(slots)}">
+        <p th:text="|Khung giờ (${zoneId}):|"></p>
+        <ul><li th:each="slot : ${slots}" th:text="${slot}"></li></ul>
+    </div>
+    <p th:if="${!#strings.isEmpty(cancellationReason)}" th:text="|Lý do hủy: ${cancellationReason}|"></p>
+    <p>Vui lòng kiểm tra chi tiết đơn đặt sân trong tài khoản Sports Booking của bạn.</p>
+</th:block>
+</html>

@@ -7,7 +7,7 @@ This document defines who owns each capability and which interfaces other parts 
 There are two different interfaces:
 
 1. **HTTP API:** routes exposed to clients through Spring controllers. A public HTTP route does not make its controller, DTO, or repository a Java API for other modules.
-2. **In-process API:** types that another module is allowed to import or implement. Spring Modulith enforces module dependencies declared in `package-info.java`. The named feature-module interfaces are `identity :: events` and `court :: api`; `shared` is an open module. A Java `public` modifier alone is not a promise of cross-module stability.
+2. **In-process API:** types that another module is allowed to import or implement. Spring Modulith enforces module dependencies declared in `package-info.java`. Named feature-module interfaces include `identity :: events`, `identity :: api`, `booking :: events` and `court :: api`; `shared` is an open module. A Java `public` modifier alone is not a promise of cross-module stability.
 
 The application is one process and one build artifact. These boundaries control coupling and ownership; they are not network service boundaries.
 
@@ -18,7 +18,7 @@ The application is one process and one build artifact. These boundaries control 
 | `identity` | `shared` | `court`, `booking`, `notification` internals |
 | `court` | `shared` | `identity`, `booking`, `notification` internals |
 | `booking` | `shared`, `court :: api` | `identity`, other `court` packages, and `notification` internals |
-| `notification` | `shared`, `identity :: events` | Other `identity` packages; `court` and `booking` internals |
+| `notification` | `shared`, `identity :: events`, `identity :: api`, `booking :: events` | Other `identity` packages; `court` and `booking` internals |
 | `shared` | No feature module | `identity`, `court`, `booking`, `notification` implementation classes |
 
 These are the `allowedDependencies` declarations in [identity](../../src/main/java/dev/booking/sports/identity/package-info.java), [court](../../src/main/java/dev/booking/sports/court/package-info.java), [booking](../../src/main/java/dev/booking/sports/booking/package-info.java), and [notification](../../src/main/java/dev/booking/sports/notification/package-info.java). [Shared](../../src/main/java/dev/booking/sports/shared/package-info.java) is declared `OPEN`; that makes its subpackages available to other modules, but callers should still use the smallest relevant contract. [ArchitectureTest](../../src/test/java/dev/booking/sports/ArchitectureTest.java) runs `ApplicationModules.verify()` to check the declared structure.
@@ -41,7 +41,7 @@ flowchart LR
 
 **HTTP API:** `/api/v1/auth`, `/api/v1/users`, `/api/v1/roles`, and `/api/v1/permissions`. The [Identity API](../api/modules/identity-api.md) is the client contract.
 
-**In-process API:** [identity.domain.event](../../src/main/java/dev/booking/sports/identity/domain/event/package-info.java) is explicitly named `identity :: events`. It contains the event payload records and `IdentityOutboxMessageTypes` used by `notification` to interpret identity email intents. Event type and version are part of this integration contract; changing a payload or event type requires updating the publishing and consuming sides together. No general-purpose user lookup or RBAC facade is currently exposed to other feature modules.
+**In-process API:** [identity.domain.event](../../src/main/java/dev/booking/sports/identity/domain/event/package-info.java) is explicitly named `identity :: events`. It contains the event payload records and `IdentityOutboxMessageTypes` used by `notification` to interpret identity email intents. Event type and version are part of this integration contract; changing a payload or event type requires updating the publishing and consuming sides together. The narrow `identity :: api` interface exposes `EmailRecipientDirectory` for email/name snapshots by user ID; it exposes no user entities or RBAC operations.
 
 **Boundary rules:** identity owns user status and permission decisions. Another module must not modify identity tables or import `UserRepository` to make its own authorization decision. The court module stores an owner UUID and obtains the acting user from the authenticated principal; it does not hold a JPA relationship to the identity `User` entity.
 
@@ -65,15 +65,31 @@ flowchart LR
 
 **Boundary rules:** booking owns reservation state and occupancy. Court continues to own operating hours, price rules, closures, and whether a court is bookable. Redis locks each selected slot in a stable key order for short-lived contention control; PostgreSQL's exclusion constraint remains the final overlap guard. Customer and idempotency key are uniquely constrained in PostgreSQL. A scheduled worker expires holds across instances with `FOR UPDATE SKIP LOCKED`. Payment must not update booking tables directly; it should drive validated booking transitions through an explicit contract or event.
 
-### `notification` — outbound email
+### `notification` — user inbox and outbound email
 
-**Owns:** mapping supported identity outbox messages to email templates, RabbitMQ publication and consumption, SendGrid delivery, and processed-delivery deduplication. Its persistent model includes `processed_email_deliveries`; the outbox table itself belongs to `shared`.
+**Realtime foundation:** `GET /api/v1/notifications/stream` opens an authenticated,
+instance-local SSE stream. `NotificationSseRegistry` owns local connection limits,
+bounded serialized sends, heartbeats and cleanup; `identity :: api` exposes
+`StreamSessionVerifier` for JWT metadata and revocation checks without exposing
+identity infrastructure. Async redispatch is permitted only for this stream path
+after the initial authenticated request. Notification create/read transactions raise
+internal change events. An AFTER_COMMIT listener schedules Redis publication on a
+bounded executor; every instance subscribes and forwards hints to local connections
+of the intended user. Repeated no-op writes and rollbacks emit no hint. Redis errors
+do not fail committed business requests. Confirmed subscription/reconnection sends
+`notification.sync` so connected clients can refresh REST state. There is no realtime
+Outbox or replay guarantee; the email Outbox remains separate. See the SSE section of the
+[Notification API](../api/modules/notification-api.md).
 
-**HTTP API:** none.
+**Owns:** persisted user notifications, inbox queries and read state, mapping supported identity outbox messages to email templates, RabbitMQ publication and consumption, SendGrid delivery, and processed-delivery deduplication. Its persistent model includes `notifications` and `processed_email_deliveries`; the outbox table itself belongs to `shared`.
 
-**In-process API:** notification consumes `identity :: events` payload types and implements the shared `OutboxPublicationHandler` contract through `IdentityEmailOutboxPublicationHandler`. It publishes `EmailQueueMessage` to RabbitMQ and consumes that message internally. No feature module currently calls a notification service directly, and notification exposes no named Spring Modulith interface of its own.
+**HTTP API:** `/api/v1/notifications` lists the authenticated user's inbox, `/unread-count` counts unread rows, `/{id}/read` marks one owned notification as read, and `/read-all` marks owned unread rows as read. All four routes require authentication; ADMIN users receive no inbox override. Lists use standard `page`/`size` pagination, ordered by creation time and ID descending. Missing and inaccessible notification IDs return the same 404. Read updates are atomic and preserve previously stored read times. See [Notification API](../api/modules/notification-api.md).
 
-**Boundary rules:** identity decides **when** an email is needed and enqueues an outbox intent. Notification decides **how** to render, queue, and send it. Delivery failure and dead-letter behavior belong to notification, while outbox polling and persistence belong to shared infrastructure. Other modules should enqueue an explicit event through the outbox rather than call `SendGridEmailSender` or a template service.
+**In-process API:** notification consumes `identity :: events` payload types and implements the shared `OutboxPublicationHandler` contract through `IdentityEmailOutboxPublicationHandler`. It publishes `EmailQueueMessage` to RabbitMQ and consumes that message internally. It also consumes `booking :: events` confirmed/cancelled/expired payloads through a notification-owned RabbitMQ queue, decoding a local view of the versioned wire envelope rather than importing booking infrastructure. A transactional handler inserts customer inbox entries with database-enforced deduplication by source event, recipient and notification type. The consumer acknowledges only after commit or confirmed retry/DLQ publication. No feature module currently calls a notification service directly, and notification exposes no named Spring Modulith interface of its own.
+
+**Booking email delivery:** the booking consumer saves a notification and one `notification.booking-email-requested` Outbox intent in the same transaction. `identity :: api` exposes `EmailRecipientDirectory` with immutable email/name snapshots; notification does not read identity entities or repositories. The intent stores the rendered email snapshot and recipient. `BookingEmailOutboxPublicationHandler` publishes it through the existing confirmed email publisher with a stable Outbox event ID for deduplication. Duplicate booking deliveries create no additional intent. Existing notifications are not backfilled.
+
+**Boundary rules:** identity decides **when** an identity email is needed and enqueues an outbox intent. Booking decides when its lifecycle changes; notification creates booking email intents. Notification decides **how** to render, queue, and send emails. Delivery failure and dead-letter behavior belong to notification, while outbox polling and persistence belong to shared infrastructure. Other modules should enqueue an explicit event through the outbox rather than call `SendGridEmailSender` or a template service.
 
 ### `shared` — cross-cutting infrastructure
 
@@ -97,7 +113,8 @@ flowchart LR
 
 | Interaction | Boundary crossed | How it works |
 | --- | --- | --- |
-| Identity email request | `identity` → `shared` → `notification` | Identity saves an outbox event; shared relay invokes notification's handler, which publishes to RabbitMQ. Notification may import only `identity :: events` from identity. |
+| Identity email request | `identity` → `shared` → `notification` | Identity saves an outbox event; shared relay invokes notification's handler, which publishes to RabbitMQ. Notification consumes typed `identity :: events` payloads. |
+| Booking email recipient | `notification` → `identity :: api` | Notification snapshots email/name through `EmailRecipientDirectory` when creating the email intent, without importing identity persistence classes. |
 | Court image upload | `court` ↔ `shared` | Court supplies an `UploadPolicy` bean. Shared verifies and tracks the upload; court claims/releases it and owns gallery records. |
 | Authentication for court requests | HTTP security context → `court` | The authenticated principal carries the actor ID and authorities. Court checks provider role and owner UUID without importing identity persistence classes. |
 | Provider booking detail authorization | `booking` → `court :: api` | Booking passes the actor and referenced court IDs to `CourtFacade`; court answers whether all courts belong to that provider without exposing repositories or entities. |

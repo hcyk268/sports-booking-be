@@ -87,6 +87,9 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
+                        .requestMatchers(request -> request.getDispatcherType() == jakarta.servlet.DispatcherType.ASYNC
+                                && request.getRequestURI().equals(request.getContextPath() + "/api/v1/notifications/stream"))
+                        .permitAll()
                         .requestMatchers(PUBLIC_AUTH_ENDPOINTS)
                         .permitAll()
                         .requestMatchers(PUBLIC_DOCS_ENDPOINTS)
