@@ -24,6 +24,7 @@ import dev.booking.sports.booking.api.dto.request.CancelBookingRequest;
 import dev.booking.sports.booking.api.dto.request.CreateBookingHoldRequest;
 import dev.booking.sports.booking.api.dto.response.BookingResponse;
 import dev.booking.sports.booking.application.BookingActorRole;
+import dev.booking.sports.booking.application.BookingCompletionService;
 import dev.booking.sports.booking.application.BookingCancellationService;
 import dev.booking.sports.booking.application.BookingCreateService;
 import dev.booking.sports.booking.application.BookingQueryService;
@@ -47,6 +48,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class BookingController {
 
+    private final BookingCompletionService completionService;
     private final BookingQueryService bookingQueryService;
     private final BookingCreateService bookingCreateService;
     private final BookingCancellationService bookingCancellationService;
@@ -115,6 +117,16 @@ public class BookingController {
                 bookingQueryService.getBooking(
                         new BookingViewer(actorId, bookingRolesOf(authentication)), bookingId),
                 servletRequest.getRequestURI());
+    }
+
+    @PostMapping("/{id}/completion")
+    @PreAuthorize("hasAnyRole('PROVIDER', 'ADMIN')")
+    @Operation(summary = "Mark a confirmed booking complete after all slots have ended")
+    public ApiResponse<BookingResponse> completeBooking(
+            @AuthenticationPrincipal(expression = "userId()") UUID actorId,
+            @PathVariable UUID id, Authentication authentication, HttpServletRequest request) {
+        return ApiResponse.success(completionService.complete(id,
+                new BookingViewer(actorId, bookingRolesOf(authentication))), request.getRequestURI());
     }
 
     @PostMapping("/{id}/cancellations")

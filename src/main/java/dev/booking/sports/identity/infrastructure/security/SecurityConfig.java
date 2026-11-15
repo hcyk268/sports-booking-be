@@ -103,6 +103,7 @@ public class SecurityConfig {
                                 "/api/v1/courts/search",
                                 "/api/v1/courts/{id}",
                                 "/api/v1/courts/{id}/schedule",
+                                "/api/v1/courts/{id}/reviews",
                                 "/api/v1/courts/{id}/images",
                                 "/api/v1/courts/{id}/images/{imageId}/content")
                         .permitAll()

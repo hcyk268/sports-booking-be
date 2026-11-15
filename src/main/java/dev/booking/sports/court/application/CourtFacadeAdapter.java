@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.booking.sports.court.domain.repository.CourtRepository;
+import dev.booking.sports.court.domain.enums.CourtStatus;
 import dev.booking.sports.court.api.dto.response.CourtScheduleResponse;
 import dev.booking.sports.court.publicapi.CourtFacade;
 import dev.booking.sports.court.publicapi.CourtSlotQuote;
@@ -28,6 +29,11 @@ class CourtFacadeAdapter implements CourtFacade {
 
     private final CourtRepository courtRepository;
     private final CourtScheduleService courtScheduleService;
+
+    @Override
+    public boolean isPublished(UUID courtId) {
+        return courtRepository.findByIdAndStatus(courtId, CourtStatus.ACTIVE).isPresent();
+    }
 
     @Override
     public Optional<List<CourtSlotQuote>> quoteBookableSlots(UUID courtId, List<CourtSlotSelection> selections) {
