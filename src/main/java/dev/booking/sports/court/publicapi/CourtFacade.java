@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public interface CourtFacade {
+    boolean isPublished(UUID courtId);
 
     Set<UUID> findOwnedCourtIds(UUID providerId);
 

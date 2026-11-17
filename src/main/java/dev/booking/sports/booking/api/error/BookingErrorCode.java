@@ -18,6 +18,8 @@ public enum BookingErrorCode implements ErrorCode {
 
     BOOKING_CANCELLATION_NOT_ALLOWED(HttpStatus.CONFLICT, "Booking cannot be cancelled in its current state"),
 
+    BOOKING_COMPLETION_NOT_ALLOWED(HttpStatus.CONFLICT, "Only confirmed bookings whose slots have ended can be completed"),
+
     BOOKING_PAYMENT_NOT_ALLOWED(HttpStatus.CONFLICT, "Booking is not open for payment"),
 
     IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT,"Idempotency key was already used with a different request"),
