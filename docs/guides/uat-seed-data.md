@@ -4,6 +4,12 @@ Script dựng **dữ liệu demo gần production**: tên sân/địa chỉ/mô 
 
 ## Điều kiện
 
+Các script dùng POSIX `sh`, `curl`, `jq` (Linux/macOS, WSL hoặc Git Bash).
+Script `test-r2-upload.sh` cần thêm `openssl`. Chạy `sh scripts/<tên-script>.sh --help`
+để xem tham số; các biến `UAT_SEED_API_BASE`, `UAT_SEED_PROVIDER_EMAIL`,
+`UAT_SEED_CUSTOMER_EMAIL`, `UAT_SEED_PASSWORD` vẫn được hỗ trợ.
+Dữ liệu sân mẫu nằm trong `scripts/uat-courts.json`.
+
 1. Stack: Postgres / Redis / RabbitMQ (`docker compose up -d`).
 2. Backend `http://localhost:8080`.
 3. `R2_ENABLED=true` + credential R2.
@@ -15,37 +21,43 @@ Script dựng **dữ liệu demo gần production**: tên sân/địa chỉ/mô 
 
 ## Chạy
 
-```powershell
-cd d:\a2024START\BE\sports-booking-be
-.\scripts\seed-uat-data.ps1
+```sh
+cd /path/to/sports-booking-be
+sh scripts/seed-uat-data.sh
+```
+
+Kiểm tra upload, đọc ảnh riêng tư và dọn ảnh thử trên R2 (nhập tài khoản provider sở hữu sân):
+
+```sh
+sh scripts/test-r2-upload.sh --court-id '<court-uuid>'
 ```
 
 ### Luồng test API (booking + payment)
 
 Sau khi seed (hoặc gộp một lệnh):
 
-```powershell
+```sh
 # Seed + smoke test toàn endpoint (IPN giả lập local → CONFIRMED)
-.\scripts\test-booking-payment-flow.ps1 -SeedFirst -SimulateIpn
+sh scripts/test-booking-payment-flow.sh --seed-first --simulate-ipn
 
 # Chỉ test theo manifest đã có (không seed lại)
-.\scripts\test-booking-payment-flow.ps1 -SimulateIpn
+sh scripts/test-booking-payment-flow.sh --simulate-ipn
 ```
 
 | Tuỳ chọn test script | Ý nghĩa |
 |---------------------|---------|
-| `-SeedFirst` | Gọi `seed-uat-data.ps1` trước khi test |
-| `-SimulateIpn` | Gửi `POST /payments/sepay/ipn` với `SEPAY_SECRET_KEY` (đọc từ `.env`) |
-| `-ManifestPath` | Manifest mặc định `scripts/uat-seed-manifest.json` |
+| `--seed-first` | Gọi `seed-uat-data.sh` trước khi test |
+| `--simulate-ipn` | Gửi `POST /payments/sepay/ipn` với `SEPAY_SECRET_KEY` (đọc từ `.env`) |
+| `--manifest-path` | Manifest mặc định `scripts/uat-seed-manifest.json` |
 
 **Lưu ý:** Nếu `GET /bookings/me` trả 500, restart backend sau khi pull fix sort JPQL trên `BookingRepository`.
 
 | Tuỳ chọn | Ý nghĩa |
 |----------|---------|
-| `-BookingDate yyyy-MM-dd` | Ngày đặt sân (mặc định **ngày mai**, TZ VN) |
-| `-SkipPayment` | Không tạo checkout SePay |
-| `-RefreshGallery` | Thêm ảnh Pexels nếu gallery còn slot (≤ max/sân) |
-| `-ManifestPath` | File JSON kết quả |
+| `--booking-date yyyy-MM-dd` | Ngày đặt sân (mặc định **ngày mai**, TZ VN) |
+| `--skip-payment` | Không tạo checkout SePay |
+| `--refresh-gallery` | Thêm ảnh Pexels nếu gallery còn slot (≤ max/sân) |
+| `--manifest-path` | File JSON kết quả |
 
 **Rate limit login:** 10 lần / 15 phút — script retry 429; nếu vẫn fail, đợi hoặc flush Redis rate limit.
 
@@ -67,9 +79,9 @@ Sau khi seed (hoặc gộp một lệnh):
 
 ## Làm dữ liệu “thật” hơn trên môi trường cũ
 
-1. Chạy lại script (cùng key): **cập nhật** tên/mô tả/giá/giờ qua API; gallery giữ ảnh cũ trừ khi `-RefreshGallery` và chưa đủ ảnh tối đa.
+1. Chạy lại script (cùng key): **cập nhật** tên/mô tả/giá/giờ qua API; gallery giữ ảnh cũ trừ khi `--refresh-gallery` và chưa đủ ảnh tối đa.
 2. Xóa sân UAT cũ (tên `UAT | ...` không có marker) trên provider portal hoặc DB nếu lộn xộn từ lần seed trước.
-3. Đổi `-BookingDate` sang **Thứ 7** để test giá cuối tuần trên manifest.
+3. Đổi `--booking-date` sang **Thứ 7** để test giá cuối tuần trên manifest.
 
 ## SePay / IPN
 
@@ -84,12 +96,12 @@ Return URL → frontend; IPN backend cần tunnel. Booking HELD hết hạn ~10 
 
 Bộ sân demo đủ dữ liệu (marker `uat-seed:football-q9` …) nằm trong `scripts/uat-seed-manifest.json` — thường đã **ACTIVE** sau seed.
 
-```powershell
+```sh
 # Publish mọi sân DRAFT của provider (sân cũ thiếu giá vẫn không search được)
-.\scripts\publish-draft-courts.ps1
+sh scripts/publish-draft-courts.sh
 
 # Booking + payment mới + file HTML mở SePay sandbox
-.\scripts\sepay-sandbox-checkout.ps1 -SeedFirst -OpenBrowser -BookingDate 2026-11-03
+sh scripts/sepay-sandbox-checkout.sh --seed-first --open-browser --booking-date 2026-11-03
 ```
 
-Thanh toán sandbox **thật**: mở `scripts/sepay-checkout.html` → chuyển khoản test theo SePay. Xác nhận booking **CONFIRMED** cần IPN tới `/api/v1/payments/sepay/ipn` (tunnel) hoặc test local dùng `-SimulateIpn` trên `test-booking-payment-flow.ps1`.
+Thanh toán sandbox **thật**: mở `scripts/sepay-checkout.html` → chuyển khoản test theo SePay. Xác nhận booking **CONFIRMED** cần IPN tới `/api/v1/payments/sepay/ipn` (tunnel) hoặc test local dùng `--simulate-ipn` trên `test-booking-payment-flow.sh`.

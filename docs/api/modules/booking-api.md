@@ -93,4 +93,8 @@ The endpoint returns the updated booking with status `CANCELLED`. Every slot bec
 
 ## Current scope
 
-Payment, booking confirmation, and refunds are not implemented yet. Cancelling a confirmed booking currently records the state change and publishes its event; no payment reversal is performed by this module.
+Payment checkout and IPN booking confirmation are implemented in the payment module.
+After booking cancellation commits, a payment consumer asynchronously cancels any
+existing `PENDING` payment and records its cancellation history. No payment is a
+successful no-op. Collected payments retain `SUCCEEDED`; cancellation does not
+perform a gateway reversal or refund. See [Payment API](payment-api.md#payment-state-after-booking-cancellation).

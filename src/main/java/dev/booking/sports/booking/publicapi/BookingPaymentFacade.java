@@ -24,5 +24,8 @@ public interface BookingPaymentFacade {
     /** Internal settlement operations; caller owns the payment processing transaction. */
     Optional<BookingPaymentSnapshot> lockForPayment(UUID bookingId);
 
+    /** Locks the booking until the caller's transaction commits; verifies cancellation before payment cleanup. */
+    boolean lockCancelledBooking(UUID bookingId);
+
     boolean confirmPayment(UUID bookingId, Instant now);
 }

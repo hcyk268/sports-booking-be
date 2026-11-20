@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import dev.booking.sports.booking.api.error.BookingErrorCode;
 import dev.booking.sports.booking.domain.enums.BookingStatus;
@@ -31,13 +32,21 @@ class BookingPaymentFacadeAdapter implements BookingPaymentFacade {
     private final OutboxService outbox;
 
     @Override
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    @Transactional(propagation = Propagation.MANDATORY)
     public Optional<BookingPaymentSnapshot> lockForPayment(UUID bookingId) {
         return bookingRepository.findByIdForUpdate(bookingId).map(this::snapshot);
     }
 
     @Override
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean lockCancelledBooking(UUID bookingId) {
+        return bookingRepository.findByIdForUpdate(bookingId)
+                .map(booking -> booking.getStatus() == BookingStatus.CANCELLED)
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public boolean confirmPayment(UUID bookingId, Instant now) {
         var booking = bookingRepository.findWithSlotsById(bookingId).orElseThrow();
         if (!snapshot(booking).awaitingPayment() || booking.getHoldExpiresAt() == null

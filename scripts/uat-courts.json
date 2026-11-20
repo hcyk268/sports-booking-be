@@ -1,0 +1,277 @@
+[
+  {
+    "amenities": [
+      "Cỏ nhân tạo",
+      "Đèn LED",
+      "Bãi xe ô tô",
+      "Phòng thay đồ",
+      "Quầy nước",
+      "Camera an ninh",
+      "Wifi khu vực chờ"
+    ],
+    "description": "Complex sân bóng 7 người mặt cỏ nhân tạo chuẩn thi đấu phong trào, hệ thống đèn LED 800 lux, khung thành chắc chắn. Phù hợp đặt sân theo giờ cho công ty, nhóm bạn hoặc giải nội bộ cuối tuần. Bãi xe rộng, có quầy nước giải khát và khu vực thay giày.\n\n(uat-seed:football-q9)",
+    "weekdayOpen": "06:00:00",
+    "slotMinutes": 60,
+    "ward": "Long Bình",
+    "rules": "- Giày đinh TF/IC; không đinh kim loại.\r\n- Không hút thuốc, không mang chai thủy tinh vào sân.\r\n- Đặt sân trước tối thiểu 2 giờ; hủy miễn phí trước giờ chơi 4 tiếng (theo chính sách app).\r\n- Trẻ em dưới 12 tuổi cần người lớn giám sát.",
+    "maxImages": 4,
+    "bookingSlots": [
+      {
+        "preferredStart": "18:30",
+        "preferredEnd": "19:30"
+      },
+      {
+        "preferredStart": "19:30",
+        "preferredEnd": "20:30"
+      }
+    ],
+    "sportId": "d1000000-0000-0000-0000-000000000001",
+    "weekendClose": "23:30:00",
+    "key": "football-q9",
+    "weekdayClose": "23:00:00",
+    "createPayment": true,
+    "address": "118 Nguyễn Xiển, Long Bình, Thủ Đức",
+    "priceSegments": [
+      {
+        "price": 420000,
+        "start": "06:00:00",
+        "end": "16:00:00",
+        "days": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY"
+        ]
+      },
+      {
+        "price": 680000,
+        "start": "16:00:00",
+        "end": "23:00:00",
+        "days": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY"
+        ]
+      },
+      {
+        "price": 580000,
+        "start": "05:30:00",
+        "end": "12:00:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      },
+      {
+        "price": 750000,
+        "start": "12:00:00",
+        "end": "17:00:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      },
+      {
+        "price": 890000,
+        "start": "17:00:00",
+        "end": "23:30:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      }
+    ],
+    "paymentMethod": "BANK_TRANSFER",
+    "name": "Saigon Seven Park - Sân bóng 7 Vinhomes Grand Park",
+    "weekendOpen": "05:30:00",
+    "imageUrls": [
+      "https://images.pexels.com/photos/114296/pexels-photo-114296.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.pexels.com/photos/47730/the-ball-stadion-football-the-pitch-47730.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.pexels.com/photos/274422/pexels-photo-274422.jpeg?auto=compress&cs=tinysrgb&w=1600"
+    ],
+    "city": "TP. Hồ Chí Minh"
+  },
+  {
+    "amenities": [
+      "Sàn chống trượt",
+      "Máy lạnh khu nghỉ",
+      "Căng cước",
+      "Cho thuê vợt",
+      "Quầy đồ uống",
+      "Tủ đựng đồ",
+      "Wifi"
+    ],
+    "description": "Hệ thống 6 sân cầu lông tiêu chuẩn BWF, sàn đế cao su chống trượt, ánh sáng đều không chói. Có dịch vụ căng cước, cho thuê vợt và bán cầu chính hãng tại quầy. Không gian máy lạnh khu vực nghỉ, phù hợp tập luyện cố định hoặc đặt lẻ buổi tối.\n\n(uat-seed:badminton-q7)",
+    "weekdayOpen": "05:30:00",
+    "slotMinutes": 60,
+    "ward": "Tân Phú",
+    "rules": "- Mang giày cầu lông sạch; không mang giày đinh ra sân.\r\n- Giữ im lặng khi đối thủ giao cầu; không quay video flash gần sân.\r\n- Mỗi sân tối đa 4 người khi đánh đôi; trẻ em cần huấn luyện viên hoặc phụ huynh.",
+    "maxImages": 4,
+    "bookingSlots": [
+      {
+        "preferredStart": "17:00",
+        "preferredEnd": "18:00"
+      }
+    ],
+    "sportId": "d1000000-0000-0000-0000-000000000002",
+    "weekendClose": "23:00:00",
+    "key": "badminton-q7",
+    "weekdayClose": "22:30:00",
+    "createPayment": false,
+    "address": "819 Tôn Đản, phường Tân Phú, Quận 7",
+    "priceSegments": [
+      {
+        "price": 130000,
+        "start": "05:30:00",
+        "end": "16:00:00",
+        "days": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY"
+        ]
+      },
+      {
+        "price": 210000,
+        "start": "16:00:00",
+        "end": "22:30:00",
+        "days": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY"
+        ]
+      },
+      {
+        "price": 190000,
+        "start": "06:00:00",
+        "end": "14:00:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      },
+      {
+        "price": 230000,
+        "start": "14:00:00",
+        "end": "18:00:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      },
+      {
+        "price": 260000,
+        "start": "18:00:00",
+        "end": "23:00:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      }
+    ],
+    "name": "Phú Mỹ Badminton Club - Hà Đô Centrosa",
+    "weekendOpen": "06:00:00",
+    "imageUrls": [
+      "https://images.pexels.com/photos/209977/pexels-photo-209977.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.pexels.com/photos/366054/pexels-photo-366054.jpeg?auto=compress&cs=tinysrgb&w=1600"
+    ],
+    "city": "TP. Hồ Chí Minh"
+  },
+  {
+    "amenities": [
+      "Mái che một phần",
+      "Lưới chắn bóng",
+      "Bãi xe máy",
+      "Quầy nước",
+      "Camera",
+      "Đèn chiếu sáng"
+    ],
+    "description": "Sân mini 5v5 lối xuống hầm có mái che một phần, mặt sân cao su d granules, lưới chắn bóng cao. Hay được các team văn phòng khu Dịch Vọng – Xuân Thủy đặt khung giờ trưa và sau 18h. Có camera và nhân viên trực quầy đến 23h.\n\n(uat-seed:football-hn)",
+    "weekdayOpen": "06:00:00",
+    "slotMinutes": 60,
+    "ward": "Dịch Vọng",
+    "rules": "- Sân 5 người; tối đa 12 người trên sân (bao gồm dự bị).\r\n- Không tổ chức tiệc BBQ trong khu vực sân.\r\n- Hoàn tiền theo chính sách hủy trên app; không nhận chuyển khoản trực tiếp ngoài hệ thống.",
+    "maxImages": 3,
+    "bookingSlots": [
+      {
+        "preferredStart": "12:00",
+        "preferredEnd": "13:00"
+      }
+    ],
+    "sportId": "d1000000-0000-0000-0000-000000000001",
+    "weekendClose": "23:00:00",
+    "key": "football-hn",
+    "weekdayClose": "23:00:00",
+    "createPayment": false,
+    "address": "42 Dịch Vọng Hậu, Dịch Vọng, Cầu Giấy",
+    "priceSegments": [
+      {
+        "price": 320000,
+        "start": "06:00:00",
+        "end": "11:30:00",
+        "days": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY"
+        ]
+      },
+      {
+        "price": 380000,
+        "start": "11:30:00",
+        "end": "17:00:00",
+        "days": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY"
+        ]
+      },
+      {
+        "price": 520000,
+        "start": "17:00:00",
+        "end": "23:00:00",
+        "days": [
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY"
+        ]
+      },
+      {
+        "price": 480000,
+        "start": "06:00:00",
+        "end": "17:00:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      },
+      {
+        "price": 620000,
+        "start": "17:00:00",
+        "end": "23:00:00",
+        "days": [
+          "SATURDAY",
+          "SUNDAY"
+        ]
+      }
+    ],
+    "name": "Hanoi Arena Mini - Sân 5 người Cầu Giấy",
+    "weekendOpen": "06:00:00",
+    "imageUrls": [
+      "https://images.pexels.com/photos/1884574/pexels-photo-1884574.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.pexels.com/photos/399187/pexels-photo-399187.jpeg?auto=compress&cs=tinysrgb&w=1600"
+    ],
+    "city": "Hà Nội"
+  }
+]

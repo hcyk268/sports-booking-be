@@ -17,8 +17,8 @@ failure. For a custom vhost, set `RABBITMQ_VHOST_URL_ENCODED` to its URL-encoded
 
 For an existing Docker broker, apply/update the same limits without restarting it:
 
-```powershell
-.\scripts\configure-rabbitmq.ps1 -VirtualHost '/'
+```sh
+sh scripts/configure-rabbitmq.sh --virtual-host '/'
 ```
 
 For a managed broker, apply the JSON policy using the provider's management tools.
@@ -36,6 +36,32 @@ PostgreSQL outbox: monitor broker disk, queue depth and database storage as well
 Booking/payment queues retain events for consumers outside this repository. No
 consumer that discards events has been added. Each real logical consumer should
 own its durable queue/binding and deduplicate using the envelope `eventId`.
+
+## Booking payment cancellation consumer
+
+`sports.payment.booking-cancelled` is a separate durable quorum queue bound to
+`sports.booking` for `booking.cancelled`. The listener ID is
+`bookingPaymentCancellationConsumer`. It validates the event envelope and locks
+booking then payment. Only pending payments are cancelled, with actor/reason history;
+missing payments and payments already terminal are successful no-ops. Duplicate
+deliveries do not create duplicate history. Collected payments and gateway attempt
+outcomes are preserved; gateway cancellation/refund remain separate operations.
+
+Transient failures go through `sports.payment.booking-cancelled.retry.1`, `.retry.2`
+and `.retry.3` after 10 seconds, 1 minute and 5 minutes, using header
+`x-payment-cancellation-retry-count`. Malformed events, unsupported versions, booking
+state mismatches and exhausted retries go to `sports.payment.booking-cancelled.dlq`.
+Copies are persistent; publisher confirms and successful routing are required before
+the original is acknowledged. Failed forwarding requeues the original after a
+one-second pause. Retry queues dead-letter at least once through exchange
+`sports.payment.booking-cancellation` and routing key `booking.cancelled`.
+
+The main queue and DLQ cap ready messages at 10,000 / 64 MiB; retry queues cap bodies
+at 64 MiB. Overflow rejects publications. These limits are declared directly in queue
+arguments; the existing backlog policy does not need to match these new queues.
+Monitor the DLQ and investigate the booking/payment before replaying through broker
+operations; there is no new HTTP replay endpoint. New bindings receive future events
+only, so historical cancellations require a controlled backfill.
 
 ## Booking notification consumer
 
@@ -130,11 +156,11 @@ in bulk. Investigate provider delivery history before any manual repair.
 
 Run focused unit/security tests and Docker-backed recovery tests:
 
-```powershell
-.\mvnw.cmd '-Dtest=EmailConsumerTest,EmailConsumerAdapterTest,EmailQueuePublisherTest,EmailRecoveryServiceTest,OutboxRetryTest,MessagingAdminSecurityTest,ArchitectureTest' test
-.\mvnw.cmd -P integration '-Dtest=EmailDeliveryDedupServiceTest,EmailRecoveryIntegrationTest,OutboxServiceIntegrationTest' test
-.\mvnw.cmd '-Dtest=BookingNotificationConsumerTest,BookingNotificationHandlerTest,BookingNotificationRecoveryServiceTest,ArchitectureTest' test
-.\mvnw.cmd -P integration '-Dtest=BookingNotificationConsumerIntegrationTest' test
+```sh
+./mvnw '-Dtest=EmailConsumerTest,EmailConsumerAdapterTest,EmailQueuePublisherTest,EmailRecoveryServiceTest,OutboxRetryTest,MessagingAdminSecurityTest,ArchitectureTest' test
+./mvnw -P integration '-Dtest=EmailDeliveryDedupServiceTest,EmailRecoveryIntegrationTest,OutboxServiceIntegrationTest' test
+./mvnw '-Dtest=BookingNotificationConsumerTest,BookingNotificationHandlerTest,BookingNotificationRecoveryServiceTest,ArchitectureTest' test
+./mvnw -P integration '-Dtest=BookingNotificationConsumerIntegrationTest' test
 ```
 
 The integration tests cover PostgreSQL rollback/concurrent delivery, atomic outbox

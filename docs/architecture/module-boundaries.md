@@ -18,6 +18,7 @@ The application is one process and one build artifact. These boundaries control 
 | `identity` | `shared` | `court`, `booking`, `notification` internals |
 | `court` | `shared` | `identity`, `booking`, `notification` internals |
 | `booking` | `shared`, `court :: api` | `identity`, other `court` packages, and `notification` internals |
+| `payment` | `shared`, `booking :: api`, `booking :: events` | Booking entities/repositories; notification internals |
 | `notification` | `shared`, `identity :: events`, `identity :: api`, `booking :: events` | Other `identity` packages; `court` and `booking` internals |
 | `shared` | No feature module | `identity`, `court`, `booking`, `notification` implementation classes |
 
@@ -34,6 +35,12 @@ flowchart LR
 ```
 
 ## Module contracts
+
+Payment consumes `booking :: events` for cancellation. It calls the narrow
+`BookingPaymentFacade.lockCancelledBooking` operation inside its transaction to lock
+and verify booking cancellation before locking and updating payment. It does not
+import booking entities or repositories. Its consumer uses a local JSON envelope
+and the public `BookingCancelledEvent` payload.
 
 ### `identity` — accounts and access
 

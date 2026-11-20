@@ -239,6 +239,32 @@ once and requires publisher confirms and successful routing. Missing routes/nack
 timeouts keep delivery in the outbox retry/failure flow, not marked published.
 SePay query/cancel reconciliation and manual refund handling remain separate work.
 
+## Payment state after booking cancellation
+
+Payment consumes version 1 `booking.cancelled` events through its own durable quorum
+queue, `sports.payment.booking-cancelled`, bound to `sports.booking`. It does not drain
+the notification queue or the existing `sports.booking.events` queue.
+
+The consumer validates the envelope and matching booking ID, then locks the booking
+before the payment in one transaction, consistent with checkout/IPN lock order. It
+checks that the booking is actually `CANCELLED`. No payment is a successful no-op;
+only a `PENDING` payment becomes `CANCELLED`, with the event's actor/reason recorded
+in payment status history. `SUCCEEDED`, `EXPIRED` and `CANCELLED` remain unchanged.
+Locked state checks make duplicate/concurrent deliveries idempotent without a
+separate processed-event table. Acknowledgement happens only after commit.
+
+This update is asynchronous. Checkout creation/resume still reject a cancelled
+booking before the event is consumed. Attempts retain their recorded gateway state;
+local payment cancellation does not prove the SePay order was cancelled. A later
+authenticated paid IPN is retained for review without confirming the cancelled booking.
+Gateway cancellation and refunds are not performed by this consumer.
+
+Transient failures retry after 10 seconds, 1 minute and 5 minutes. Invalid envelopes
+and exhausted retries go to `sports.payment.booking-cancelled.dlq`. Retry/DLQ copies
+are persistent and publisher-confirmed before acknowledging the original delivery.
+If forwarding fails, the original is requeued. See the RabbitMQ operations guide
+for queue names and operational limitations.
+
 ## Errors
 
 Missing the required `Idempotency-Key` header on payment creation returns

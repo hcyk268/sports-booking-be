@@ -2,6 +2,7 @@ package dev.booking.sports.payment.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -153,6 +154,22 @@ class PaymentInboxProcessorTest {
         assertThat(savedReceipt.getResolutionStatus()).isEqualTo(PaymentResolutionStatus.REVIEW_REQUIRED);
         verify(outbox).enqueue(eq("PAYMENT_INBOX"), eq(inbox.getId()),
                 eq(PaymentOutboxMessageTypes.REVIEW_REQUIRED), eq(PaymentOutboxMessageTypes.VERSION), any());
+    }
+
+    @Test
+    void receiptAfterBookingCancellationIsRetainedWithoutResurrectingBooking() {
+        payment.cancel(customerId, "Change of plans");
+        when(bookings.lockForPayment(bookingId)).thenReturn(Optional.of(snapshot(false, payment.getExpiresAt())));
+
+        processor.process(claim);
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(attempt.getStatus()).isEqualTo(PaymentAttemptStatus.SUCCEEDED);
+        assertThat(savedReceipt.getPaymentId()).isEqualTo(payment.getId());
+        assertThat(savedReceipt.getResolutionStatus()).isEqualTo(PaymentResolutionStatus.REVIEW_REQUIRED);
+        assertThat(inbox.getLastError()).isEqualTo("ON_TIME_PAYMENT_UNFULFILLABLE");
+        verify(bookings, never()).confirmPayment(any(), any());
+        verify(outbox, never()).enqueue(eq("PAYMENT"), any(), eq(PaymentOutboxMessageTypes.SUCCEEDED), anyInt(), any());
     }
 
     @Test
