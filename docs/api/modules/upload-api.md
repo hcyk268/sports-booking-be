@@ -4,26 +4,6 @@ Upload provides a shared direct-to-storage upload mechanism backed by Cloudflare
 
 Base path: `/api/v1/uploads`.
 
----
-
-## Scope
-
-| In scope | Out of scope (for now) |
-|----------|-------------------------|
-| Direct-to-storage presigned PUT ticket generation | Multipart / chunked file uploads |
-| Purpose-based policy authorization and resource checks | Non-image files (PDF, video, documents) |
-| Two-phase storage workflow (staging → verification → assets) | Public CDN distribution or public bucket endpoints |
-| Server-side image decoding validation (PNG/JPEG, dimensions) | Antivirus scanning |
-| Object promotion via S3 conditional copy (`CopySourceIfMatch`) | |
-| Completion and verification endpoint (`/uploads/{id}/complete`) | |
-| Internal claim and release protocol for consuming domain modules | |
-| Short-lived presigned read URLs (60s) for private assets | |
-| Cancellation of unattached uploads and background cleanup | |
-
-All uploaded files bypass the application server on upload: clients stream bytes directly to Cloudflare R2 staging, and the backend verifies and promotes the object upon completion.
-
----
-
 ## Flows
 
 **Direct upload & verification**
@@ -45,13 +25,8 @@ All uploaded files bypass the application server on upload: clients stream bytes
 2. Backend calls internal `UploadService.readUrl(uploadId)` → issues presigned GET URL valid for 60 seconds.
 3. Client accesses the signed URL directly without authentication headers.
 
----
-
 ## Business rules
 
-- **Direct upload architecture:**
-  - File bytes never transit the Spring application server during the client upload step.
-  - The application server only downloads the file from staging during `/complete` to perform validation.
 - **Policies & permissions:**
   - Every upload request must specify a valid registered `purpose` (e.g. `COURT_IMAGE`).
   - The purpose policy verifies caller authorization and resource ownership (e.g. provider owns the target court).
@@ -69,22 +44,17 @@ All uploaded files bypass the application server on upload: clients stream bytes
 - **Lifecycles & state machine:**
   - States: `PENDING` → `READY` → `ATTACHED` → `DELETE_PENDING` → `DELETED`.
   - Ticket validity: presigned PUT URL expires in 5 minutes; complete/claim must occur within 15 minutes of initiation.
-  - Rate limits: 20 initiates, 30 completes.
+  - Rate limits: 20 initiates and 30 completes per 60-second window (separate actions).
   - Concurrent unfinished limit: at most 20 uploads in `PENDING` or `READY` per user (`UPLOAD_LIMIT`, 429).
 - **Asset binding:**
   - An upload is bound to the creating user (`ownerId`), `purpose`, and `resourceId`.
   - Only the creating user can complete, claim, or cancel the upload.
   - An asset cannot be claimed by a different resource, module, or user.
-- **Private read access:**
-  - Private assets are read via short-lived presigned GET URLs (60-second expiration).
-  - Consuming modules must verify read authorization before issuing a read URL.
 - **Infrastructure requirements:**
   - Private Cloudflare R2 bucket with S3-compatible API credentials.
   - Bucket CORS must allow `PUT`, `GET`, `HEAD`, headers `content-type`, `x-amz-meta-upload-id`, and expose header `ETag`.
   - R2 lifecycle rule must auto-delete `staging/` prefix after 1 day.
   - If `R2_ENABLED=false`, initiation returns `503 UPLOAD_UNAVAILABLE`.
-
----
 
 ## Special cases
 
@@ -98,8 +68,6 @@ All uploaded files bypass the application server on upload: clients stream bytes
 | Cancel already `ATTACHED` upload | **409 Conflict** (`UPLOAD_NOT_READY`). |
 | Concurrent unfinished uploads >= 20 | **429 Too Many Requests** (`UPLOAD_LIMIT`). |
 | Storage service disabled (`R2_ENABLED=false`) | **503 Service Unavailable** (`UPLOAD_UNAVAILABLE`). |
-
----
 
 ## Endpoints
 

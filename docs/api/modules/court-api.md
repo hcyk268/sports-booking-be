@@ -1,29 +1,10 @@
 # Court API
 
-Court covers sports catalog lookup, public court discovery and search, daily operating schedules and pricing calculation, and provider-side court lifecycle management (profiles, weekly operating hours, price rules, temporary closures, and image gallery). Shared rules: [API conventions](../api-conventions.md). Errors: [error codes](../error-codes.md). Image upload lifecycle: [Upload API](./upload-api.md).
+Court covers sports catalog lookup, public court discovery and search, daily operating schedules and pricing calculation, and provider-side court lifecycle management (profiles, weekly operating hours, price rules, temporary closures, and image gallery). Shared rules: [API conventions](../api-conventions.md). Errors: [error codes](../error-codes.md). Image upload lifecycle: [Upload API](./upload-api.md). Ratings and comments: [Review API](./review-api.md).
 
 Base paths: `/api/v1/sports`, `/api/v1/courts`, `/api/v1/provider/courts`.
 
----
-
-## Scope
-
-| In scope | Out of scope (for now) |
-|----------|-------------------------|
-| Sports catalog listing | Booking availability checks and reservation holds |
-| Public court search (keyword, city, sport) | Provider onboarding and business verification (KYC) |
-| Advanced multi-filter search (date, slot time, total price) | Geolocation radius / distance-based court search |
-| Public court details and daily slot schedules with price calculation | Accent-insensitive / Vietnamese unaccented full-text search |
-| Provider court lifecycle: create `DRAFT`, update, publish to `ACTIVE` | Customer reviews, ratings, and public provider profile pages |
-| Weekly operating hours management (slot duration 15–240 min) | |
-| Day-of-week and hourly price rules (non-overlapping per day) | |
-| Temporary date/time closures with overlap prevention | |
-| Court image gallery (attach verified R2 upload, cover selection, delete) | |
-| Short-lived presigned read URLs for private court images | |
-
 New courts created by providers start in status `DRAFT`. Publishing changes status to `ACTIVE`. Only `ACTIVE` courts are visible to the public.
-
----
 
 ## Flows
 
@@ -44,21 +25,6 @@ New courts created by providers start in status `DRAFT`. Publishing changes stat
 4. `GET /courts/{id}/schedule?date=YYYY-MM-DD` → view daily time slots, prices, and closure flags.
 
 *Note: Search results and `closed: false` slots reflect schedule and closures only. Booking availability must be verified by the booking module prior to confirming a reservation.*
-
-**Temporary closures (Provider)**
-
-1. `POST /provider/courts/{id}/closures` (date, start/end time, reason) → creates closure; overlapping slots on that date are marked `closed: true`.
-2. `GET /provider/courts/{id}/closures?date=YYYY-MM-DD` → inspect closures for that date.
-3. `DELETE /provider/courts/{id}/closures/{closureId}` (204) → removes closure; slots reopen unless covered by another closure.
-
-**Gallery & cover management (Provider)**
-
-1. `POST /provider/courts/{id}/images` → attach verified upload (max 10 images).
-2. `PUT /provider/courts/{id}/images/{imageId}/cover` → designate cover image.
-3. `DELETE /provider/courts/{id}/images/{imageId}` (204) → deletes image; if it was cover, the first remaining image in display order becomes cover.
-4. `GET /provider/courts/{id}/images/{imageId}/access` → short-lived presigned GET URL (60s) for private preview.
-
----
 
 ## Business rules
 
@@ -107,8 +73,6 @@ New courts created by providers start in status `DRAFT`. Publishing changes stat
   - Deleting the cover image promotes the next image in display order to cover.
   - Images of `DRAFT` courts are private and cannot be viewed via public endpoints.
 
----
-
 ## Special cases
 
 | Case | Behavior |
@@ -124,8 +88,6 @@ New courts created by providers start in status `DRAFT`. Publishing changes stat
 | Image content redirect | **302 Found** redirect to short-lived R2 presigned GET URL (or **200 OK** raw bytes for legacy local images). |
 | Private image access (`/access`) | **200 OK** with `{ "url": "<presigned URL>" }` (valid for 60s; `url: null` for legacy local images). |
 | Delete closure / delete image | **204 No Content**, no JSON envelope. |
-
----
 
 ## Endpoints
 

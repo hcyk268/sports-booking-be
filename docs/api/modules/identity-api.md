@@ -4,21 +4,7 @@ Identity covers registration, sign-in, sessions, user profiles, roles, and permi
 
 Base paths: `/api/v1/auth`, `/api/v1/users`, `/api/v1/roles`, `/api/v1/permissions`.
 
----
-
-## Scope
-
-| In scope | Out of scope (for now) |
-|----------|-------------------------|
-| Self-service sign-up with email verification | OAuth / social login |
-| JWT access + refresh tokens, per-device sessions | User self-delete |
-| Forgot / change password (OTP) | Booking or venue APIs |
-| Admin user lifecycle (create, list, lock, disable) | |
-| RBAC: roles, permission catalog, guarded role edits | |
-
 New users from **register** get role `CUSTOMER` and status `PENDING_VERIFICATION`. Admin **create user** sets status `ACTIVE`, assigns chosen roles, and emails a temporary password.
-
----
 
 ## Flows
 
@@ -49,8 +35,6 @@ New users from **register** get role `CUSTOMER` and status `PENDING_VERIFICATION
 2. `POST /roles/{code}/permissions/change-request` (202) with the permission set and `version` → OTP email.
 3. `PUT /roles/{code}/permissions` with OTP, the same permission set, and the current `version` → permissions replaced.
 
----
-
 ## Business rules
 
 - **Sign-in:** `PENDING_VERIFICATION`, `LOCKED`, and `DISABLED` accounts cannot obtain tokens (`ACCOUNT_NOT_VERIFIED`, `ACCOUNT_LOCKED`, `ACCOUNT_DISABLED`).
@@ -62,11 +46,8 @@ New users from **register** get role `CUSTOMER` and status `PENDING_VERIFICATION
   - Profile updates, user role replacement, account lock/unlock/disable, and role permission changes require the latest returned `version`.
   - Lock/unlock/disable accept JSON `{ "version": 0 }`; other mutation requests include `version` alongside their existing fields.
   - A stale version or a transaction race returns `409 OPTIMISTIC_LOCK_CONFLICT`; reload the user or role before retrying.
-  - Password, verification, and login writes are also protected by the persisted user version, but do not require clients to send it because they are command flows rather than edits of a previously read representation.
 - **Role permissions:** `CUSTOMER` role permissions cannot be changed. `ADMIN` must always keep a fixed set of permissions (see `RolePermissionChangePolicy`).
 - **OTP:** 6 digits; limited attempts; expiry configured in app settings.
-
----
 
 ## Special cases
 
@@ -79,10 +60,7 @@ New users from **register** get role `CUSTOMER` and status `PENDING_VERIFICATION
 | Permission change request | **202 Accepted** with `ApiResponse` body. |
 | Replace user roles | All sessions for that user are revoked immediately. |
 | Lock / disable user | All sessions for that user are revoked. |
-| Stale user or role version | **409 OPTIMISTIC_LOCK_CONFLICT**; no profile, role, or account-state change is persisted. |
 | Rate limits | Login, resend verification, forgot password, change-password OTP, role permission OTP → `429` / `TOO_MANY_REQUESTS` when exceeded. |
-
----
 
 ## Endpoints
 

@@ -1,77 +1,35 @@
 # Payment API
 
-`POST /api/v1/bookings/{bookingId}/payments` is implemented. It validates ownership,
-booking state/deadline, creates the payment and signed SePay form, and transitions the
-booking/slots to `PENDING_PAYMENT` atomically. Same-key replays return the stored form
-while the booking/payment/attempt remain eligible. It does not collect money itself.
+Base paths: `/api/v1/bookings/{bookingId}/payments` and `/api/v1/payments`.
+Shared rules: [API conventions](../api-conventions.md). Persistence: [payment database contract](../../payment-schema.md).
 
-`GET /api/v1/bookings/{bookingId}/payments` is also implemented. It authorizes booking
-access before reading payment data, returns `[]` when none exists, and returns attempts,
-transactions and refund summaries otherwise. `canResumeCheckout` checks both booking
-and payment deadlines/state plus an eligible attempt using the current server time.
-It is a read-only local query: no SePay calls, row locks, signing or state changes.
+## Implementation status
 
-`GET /api/v1/payments` and `GET /api/v1/payments/{id}` are implemented as well.
-Lists filter customer/provider/admin visibility before pagination and use a read-only
-SQL projection across payments, bookings, slots and courts. Provider access requires
-ownership of every court in the booking; customer and provider roles combine with OR.
-Client-supplied `customerId` is an additional filter and cannot widen that scope.
-Rows are ordered by payment creation time descending, then ID descending. The time
-filter applies to payment creation with inclusive `from` and exclusive `to`.
-Invalid pagination/date ordering is rejected. Missing or inaccessible payment details
-return the same `404 PAYMENT_NOT_FOUND`. Detail responses reuse the booking-payment
-read model and never expose signed checkout fields or internal refund notes.
-List hydration batches booking access, attempts, transactions and refunds for the
-whole page. It does not issue per-payment queries or paginate over collection fetch
-joins. Empty pages skip these batch reads.
-
-`POST /api/v1/payments/{id}/checkout` is implemented. Only the booking's customer can
-resume; missing or inaccessible payments return `404 PAYMENT_NOT_FOUND`. The read-only
-service checks booking/payment state, deadlines and snapshot consistency, then returns
-the stored ordered signed form of the active `PREPARED`/`PENDING` attempt. `UNKNOWN`
-requires reconciliation. It does not create attempts, sign again, call SePay, change
-state or extend the hold. No request body or `Idempotency-Key` is required. If no
-eligible active attempt exists, it returns `409 PAYMENT_CHECKOUT_NOT_ALLOWED`.
-The browser submits the returned form again; this response is a local eligibility
-check, and the gateway outcome may change after the response.
-
-The IPN reception handler is also implemented; see the inbox contract below.
-The other 8 handlers still return `null`. Their signatures, role annotations, DTOs,
-validation and error-code catalogue are scaffolding only. An empty stub response is
-not a completed operation. Inbox processing and atomic booking confirmation are implemented;
-manual reconciliation/refund APIs and a SePay query/cancel client are still pending.
-
-Customer/admin APIs declare `ApiResponse<T>`; paginated lists use `PageResponse<T>`.
-When implemented, booking/payment reads must enforce resource ownership and provider
-scope in addition to the role annotations. The booking payments endpoint returns a
-list, currently containing at most one payment because of the unique booking FK.
+Checkout creation/resume, scoped reads, authenticated IPN reception, settlement and
+pending-payment cancellation are implemented. Reconciliation and seven refund
+handlers remain placeholders returning `null`; their declared schemas are not
+usable operations. SePay query/cancel and manual refund handling are pending.
 
 ## Routes
 
-| Method | Route | Role | Declared response data |
-| --- | --- | --- | --- |
-| POST | `/api/v1/bookings/{bookingId}/payments` | CUSTOMER | `PaymentCheckoutResponse` (201) |
-| GET | `/api/v1/bookings/{bookingId}/payments` | CUSTOMER / PROVIDER / ADMIN | List of `PaymentResponse` |
-| GET | `/api/v1/payments` | CUSTOMER / PROVIDER / ADMIN | Page of `PaymentResponse` |
-| GET | `/api/v1/payments/{id}` | CUSTOMER / PROVIDER / ADMIN | `PaymentResponse` |
-| POST | `/api/v1/payments/{id}/checkout` | CUSTOMER | `PaymentCheckoutResponse` |
-| POST | `/api/v1/payments/{id}/reconciliation` | ADMIN | `PaymentReconciliationResponse` (202) |
-| POST | `/api/v1/payments/sepay/ipn` | SePay secret authentication | Bare `SePayIpnResponse` |
-| POST | `/api/v1/payments/refunds` | ADMIN | `PaymentRefundResponse` (201) |
-| GET | `/api/v1/payments/refunds` | ADMIN | Page of `PaymentRefundResponse` |
-| GET | `/api/v1/payments/refunds/{id}` | ADMIN | `PaymentRefundResponse` |
-| POST | `/api/v1/payments/refunds/{id}/processing` | ADMIN | `PaymentRefundResponse` |
-| POST | `/api/v1/payments/refunds/{id}/completion` | ADMIN | `PaymentRefundResponse` |
-| POST | `/api/v1/payments/refunds/{id}/rejection` | ADMIN | `PaymentRefundResponse` |
-| POST | `/api/v1/payments/refunds/{id}/cancellation` | ADMIN | `PaymentRefundResponse` |
+| Method | Route | Role | Declared response data | Status |
+| --- | --- | --- | --- | --- |
+| POST | `/api/v1/bookings/{bookingId}/payments` | CUSTOMER | `PaymentCheckoutResponse` (201) | Implemented |
+| GET | `/api/v1/bookings/{bookingId}/payments` | CUSTOMER / PROVIDER / ADMIN | List of `PaymentResponse` | Implemented |
+| GET | `/api/v1/payments` | CUSTOMER / PROVIDER / ADMIN | Page of `PaymentResponse` | Implemented |
+| GET | `/api/v1/payments/{id}` | CUSTOMER / PROVIDER / ADMIN | `PaymentResponse` | Implemented |
+| POST | `/api/v1/payments/{id}/checkout` | CUSTOMER | `PaymentCheckoutResponse` | Implemented |
+| POST | `/api/v1/payments/{id}/reconciliation` | ADMIN | `PaymentReconciliationResponse` (202) | Placeholder |
+| POST | `/api/v1/payments/sepay/ipn` | SePay secret authentication | Bare `SePayIpnResponse` | Implemented |
+| POST | `/api/v1/payments/refunds` | ADMIN | `PaymentRefundResponse` (201) | Placeholder |
+| GET | `/api/v1/payments/refunds` | ADMIN | Page of `PaymentRefundResponse` | Placeholder |
+| GET | `/api/v1/payments/refunds/{id}` | ADMIN | `PaymentRefundResponse` | Placeholder |
+| POST | `/api/v1/payments/refunds/{id}/processing` | ADMIN | `PaymentRefundResponse` | Placeholder |
+| POST | `/api/v1/payments/refunds/{id}/completion` | ADMIN | `PaymentRefundResponse` | Placeholder |
+| POST | `/api/v1/payments/refunds/{id}/rejection` | ADMIN | `PaymentRefundResponse` | Placeholder |
+| POST | `/api/v1/payments/refunds/{id}/cancellation` | ADMIN | `PaymentRefundResponse` | Placeholder |
 
 ## Create payment behavior
-
-The service acquires a customer/key Redis lease using a SHA-256 digest of the
-`Idempotency-Key` and retains the raw key for durable database replay checks. It then
-calls a separate `REQUIRES_NEW` transaction. Redis is released after that transaction
-commits or rolls back. Booking is locked first through `booking :: api`, then payment.
-This also serializes requests with different keys for the same booking.
 
 - Same key and changed payment method: `409 PAYMENT_IDEMPOTENCY_KEY_REUSED`.
 - Same key and eligible attempt: return its original ordered signed payload, no new
@@ -101,61 +59,53 @@ The server adds/replaces a `paymentId` query parameter on each configured return
 so the result UI can identify the payment without relying on a browser's last-opened
 booking. This parameter identifies the resource; it does not prove payment success.
 
-Signing follows the [official checkout contract](https://developer.sepay.vn/vi/cong-thanh-toan/API/don-hang/form-thanh-toan):
-documented field order, raw values joined with commas, UTF-8 HMAC-SHA256 and Base64.
-No undocumented expiry/cancellation parameter is sent to SePay.
-
 ## Requests
 
 - Create payment: JSON `{}` or an optional `paymentMethod` of `CARD`, `BANK_TRANSFER`
   or `NAPAS_BANK_TRANSFER`. Required nonblank `Idempotency-Key`, at most 100 characters.
   Amount, currency, merchant, callback URLs and hold deadline come from the server.
-- Resume checkout: no request body. Reuse the existing eligible attempt and signed
-  payload; do not extend the hold or silently create another invoice.
-- Reconciliation: no request body. The response represents a requested asynchronous
-  check, not confirmation that payment succeeded.
-- Create refund: `paymentId`, `paymentTransactionId`, positive whole-dong `amount`,
-  and nonblank `reason` up to 1000 characters; required `Idempotency-Key`.
-- Start refund processing: non-negative `version`.
-- Complete refund: non-negative `version`, nonblank `refundReference` up to 255
-  characters, optional `evidenceAssetId` and `adminNote` up to 2000 characters;
-  required `Idempotency-Key`. This records a manual transfer, not an automated payout.
-- Reject/cancel refund: non-negative `version` and nonblank `reason` up to 1000
-  characters. Future handlers must validate the current refund state.
 
-Payment lists accept `bookingId`, `customerId`, `status`, `from`, `to`, `page`, `size`.
-Refund lists accept `paymentId`, `paymentTransactionId`, `status`, `from`, `to`,
-`page`, `size`. Timestamps are ISO-8601 instants. Pagination defaults to page 0,
-size 20; allowed size 1-100. Date ordering is an application check still pending.
+Payment lists accept `bookingId`, `customerId`, `status`, `from`, `to`, `page`, and
+`size`. Timestamps are ISO-8601 instants; `from` is inclusive and `to` exclusive,
+filtering payment creation time. Date ordering is validated. Pagination defaults to
+page 0, size 20; allowed size is 1–100. Results sort by creation time then ID descending.
 
-`PaymentCheckoutResponse.checkout.fields` is an ordered array of `{name, value}`.
-Signed fields are not included in general payment/attempt responses. Payment readers
-receive refund summaries; detailed refund responses with admin notes/evidence are
-available through the admin refund endpoints.
+## Payment reads and checkout resume
+
+Customers see their own payments. Providers must own every court in the booking;
+admins can read all. Customer/provider roles combine with OR, and `customerId` is
+an additional filter that cannot widen access. Missing/inaccessible payment details
+return `404 PAYMENT_NOT_FOUND`. Booking payment reads return a list of at most one
+payment, or `[]` if none exists.
+
+Responses include attempts, transactions, refund summaries, and `canResumeCheckout`.
+General reads omit signed checkout fields and internal refund notes.
+
+Only the booking's customer can resume checkout. The endpoint needs no body or
+idempotency key and returns the stored form of an eligible `PREPARED`/`PENDING`
+attempt. It does not create an invoice, call SePay, or extend the hold. Ineligible
+state/deadlines return `409 PAYMENT_CHECKOUT_NOT_ALLOWED`; `UNKNOWN` needs reconciliation.
+The browser must submit the returned form; eligibility can change after the response.
+
+`PaymentCheckoutResponse.checkout.fields` is an ordered array of `{name, value}`
+for the browser to submit unchanged.
 
 ## SePay Gateway IPN
 
-The endpoint accepts a JSON string so the full payload, including fields unknown to
-the DTO, reaches the inbox. It authenticates `X-Secret-Key` against `SEPAY_SECRET_KEY`
-using a constant-time comparison, then parses and validates `SePayIpnRequest`. Missing
-or invalid secrets return `401 SEPAY_IPN_UNAUTHORIZED`; invalid JSON/DTO returns
-`400 SEPAY_IPN_INVALID`. Configure SePay merchant authentication as `SECRET_KEY`.
-Merchant and environment come from server configuration. No user JWT is required.
-Disabling checkout creation does not disable reception of already pending payments.
+The endpoint authenticates `X-Secret-Key` against `SEPAY_SECRET_KEY`, then validates
+the JSON payload. Configure merchant authentication as `SECRET_KEY`. Missing/invalid
+secrets return `401 SEPAY_IPN_UNAUTHORIZED`; invalid JSON/DTO returns
+`400 SEPAY_IPN_INVALID`. No user JWT is required. Disabling new checkout creation
+does not disable IPN reception for existing payments.
 
-Reception runs in its own transaction. PostgreSQL `INSERT ... ON CONFLICT DO NOTHING`
-and the inbox unique constraint serialize concurrent duplicates without aborting the
-transaction. ACK is bare JSON `{"success": true}` with HTTP 200, only after commit.
-Database/commit failures produce an error response, never a successful ACK.
+The full JSON content is retained in the inbox. HTTP 200 with bare JSON
+`{"success": true}` acknowledges a committed inbox record, not a confirmed booking.
+Database/commit failures do not return a successful acknowledgement.
 
-The adapter hashes notification type, `transaction.id`, order status and transaction
-status for `deduplication_key`. `transaction.id` is the chosen gateway transaction
-identity; `transaction.transaction_id` remains a separate reference. `payload_hash`
-is a hash of normalized financial identifiers/content, not raw request bytes. Delivery
-timestamp, JSON formatting, amount scale and optional metadata do not create conflicts.
-`transaction.transaction_date` is part of the financial content; a conflicting value
-is retained for review rather than silently replacing the first receipt.
-Paid and void notifications remain separate events.
+`transaction.id` identifies the gateway transaction; `transaction.transaction_id`
+is a separate reference. Paid and void notifications are distinct events. Financial
+content is compared after normalization, so JSON formatting and delivery metadata do
+not create conflicts.
 
 Identical retries ACK without another row. Conflicting financial content is retained
 as an additional `REVIEW_REQUIRED` row keyed by the original key plus content hash;
@@ -180,15 +130,11 @@ stored or logged.
 The scheduled worker is enabled by default (`PAYMENT_INBOX_ENABLED=true`), independently
 of checkout creation, and polls every second (`PAYMENT_INBOX_POLL_INTERVAL`).
 `app.payment.inbox` defaults: batch size 25, lease 60 seconds, retry delay 15 seconds,
-max attempts 8. A batch claims one job at a time and processes each job in its own
-transaction; it does not load a page of entities and lazily hydrate their relations.
+max attempts 8. Each job is processed in its own transaction.
 
-Claiming uses PostgreSQL `FOR UPDATE SKIP LOCKED` and a new lease token. Processing
-locks the inbox row and checks the token/deadline; a stale worker cannot complete it.
-The gateway transaction identity is serialized with a transaction-scoped advisory
-lock, including when no receipt exists yet. Booking and payment locks are taken in
-that order, consistent with checkout creation. Invoice routing uses scalar projections
-before loading the locked entities, so a waiter does not reuse stale cached state.
+Leases fence stale workers; processing locks booking before payment and commits
+receipt, settlement, booking/slots/history, outbox and inbox completion atomically.
+Failure rolls back business changes; duplicates cannot allocate or publish success twice.
 
 For `ORDER_PAID`, only `CAPTURED` + `PAYMENT` + `APPROVED` can settle. The worker
 checks order/transaction identity, amount, currency, payment method when present,
@@ -202,10 +148,6 @@ during grace. An on-time payment discovered after grace, cancellation or release
 `ON_TIME_PAYMENT_UNFULFILLABLE` and requires review/refund, not slot resurrection.
 If the gateway omitted transaction time and the IPN arrived after the original
 deadline, the result is `PAYMENT_TIME_UNKNOWN` and requires review.
-Matching the receipt is flushed before setting the payment's composite settlement FK.
-Receipt, attempt outcome, booking/slots/history, settlement, outbox and inbox completion
-commit together. Failure rolls all business changes back. Duplicates never allocate
-the same receipt or publish success twice.
 
 Late/cancelled bookings, expired payments, extra collections, mismatches, unknown
 invoices and conflicting financial facts retain the receipt and enter review. Valid
@@ -221,8 +163,7 @@ the automatic worker claims only due `PENDING` or abandoned `PROCESSING` rows.
 
 Transient failures retry after rollback, with exponential delay capped at 64 times
 the base delay. Exhausted attempts become `FAILED` and emit a review event; exhausted
-abandoned leases enter review as well. Retry metadata stores exception class names,
-not messages that might contain request/SQL data.
+abandoned leases enter review as well.
 
 Transactional outbox events:
 
@@ -241,17 +182,9 @@ SePay query/cancel reconciliation and manual refund handling remain separate wor
 
 ## Payment state after booking cancellation
 
-Payment consumes version 1 `booking.cancelled` events through its own durable quorum
-queue, `sports.payment.booking-cancelled`, bound to `sports.booking`. It does not drain
-the notification queue or the existing `sports.booking.events` queue.
-
-The consumer validates the envelope and matching booking ID, then locks the booking
-before the payment in one transaction, consistent with checkout/IPN lock order. It
-checks that the booking is actually `CANCELLED`. No payment is a successful no-op;
-only a `PENDING` payment becomes `CANCELLED`, with the event's actor/reason recorded
-in payment status history. `SUCCEEDED`, `EXPIRED` and `CANCELLED` remain unchanged.
-Locked state checks make duplicate/concurrent deliveries idempotent without a
-separate processed-event table. Acknowledgement happens only after commit.
+After `booking.cancelled`, a consumer cancels an existing `PENDING` payment and
+records the event actor/reason. No payment or an already terminal payment is a
+successful no-op. Duplicate delivery does not create additional history.
 
 This update is asynchronous. Checkout creation/resume still reject a cancelled
 booking before the event is consumed. Attempts retain their recorded gateway state;
@@ -259,19 +192,14 @@ local payment cancellation does not prove the SePay order was cancelled. A later
 authenticated paid IPN is retained for review without confirming the cancelled booking.
 Gateway cancellation and refunds are not performed by this consumer.
 
-Transient failures retry after 10 seconds, 1 minute and 5 minutes. Invalid envelopes
-and exhausted retries go to `sports.payment.booking-cancelled.dlq`. Retry/DLQ copies
-are persistent and publisher-confirmed before acknowledging the original delivery.
-If forwarding fails, the original is requeued. See the RabbitMQ operations guide
-for queue names and operational limitations.
+Queue names, retries and recovery are documented in
+[RabbitMQ operations](../../guides/rabbitmq-operations.md#booking-payment-cancellation-consumer).
 
 ## Errors
 
 Missing the required `Idempotency-Key` header on payment creation returns
 `400 MISSING_HEADER`, with the missing header name in the message.
 
-`PaymentErrorCode` defines payment/attempt state conflicts, deadline, idempotency,
-transaction matching, gateway/IPN, reconciliation and manual refund errors.
-It is not thrown by the placeholder handlers. Reuse the shared
-`OPTIMISTIC_LOCK_CONFLICT` for stale versions and shared validation error handling
-for malformed DTOs/parameters instead of introducing another version error.
+See the [error catalog](../error-codes.md) for payment state, deadline, idempotency,
+gateway and validation errors. Placeholder handlers do not implement their declared
+business errors.

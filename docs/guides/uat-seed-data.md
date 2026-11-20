@@ -1,107 +1,148 @@
-# UAT seed data (Booking & Payment)
+# UAT seed data and sandbox checkout
 
-Script dựng **dữ liệu demo gần production**: tên sân/địa chỉ/mô tả tiếng Việt, bảng giá theo ngày thường–cuối tuần, **ảnh sân thể thao (Pexels) → R2**, hồ sơ user có tên + SĐT, booking theo khung giờ cao điểm (multi-slot cho sân bóng 7).
+Use the API scripts to create Vietnamese demo courts, R2 images, user profiles,
+booking holds, and optional SePay checkout. This modifies the selected accounts and
+court configuration; run it against a development or UAT environment.
 
-## Điều kiện
+## Prerequisites
 
-Các script dùng POSIX `sh`, `curl`, `jq` (Linux/macOS, WSL hoặc Git Bash).
-Script `test-r2-upload.sh` cần thêm `openssl`. Chạy `sh scripts/<tên-script>.sh --help`
-để xem tham số; các biến `UAT_SEED_API_BASE`, `UAT_SEED_PROVIDER_EMAIL`,
-`UAT_SEED_CUSTOMER_EMAIL`, `UAT_SEED_PASSWORD` vẫn được hỗ trợ.
-Dữ liệu sân mẫu nằm trong `scripts/uat-courts.json`.
+- A running backend and PostgreSQL/Redis/RabbitMQ; see [local development](local-development.md).
+- POSIX `sh`, `curl`, and `jq` (Linux/macOS, WSL, or Git Bash). `test-r2-upload.sh` also needs `openssl`.
+- R2 enabled and configured with a private bucket, CORS, and lifecycle rules; see [Upload API](../api/modules/upload-api.md).
+- Active provider/customer accounts with their respective roles. The script signs in existing users; it does not register or activate them.
+- SePay sandbox configured for checkout, unless seeding with `--skip-payment`.
 
-1. Stack: Postgres / Redis / RabbitMQ (`docker compose up -d`).
-2. Backend `http://localhost:8080`.
-3. `R2_ENABLED=true` + credential R2.
-4. SePay (payment): `SEPAY_ENABLED=true` + sandbox merchant.
-5. User ACTIVE + role:
-   - Provider: `paysafe.ikegdn1@gmail.com`
-   - Customer: `paysafe.jiwhva2@gmail.com`
-   - Mật khẩu: `matkhauMANH123` (hoặc `UAT_SEED_PASSWORD`).
+Run `sh scripts/<script-name>.sh --help` for supported options. Shared environment
+variables are `UAT_SEED_API_BASE` (default `http://localhost:8080/api/v1`),
+`UAT_SEED_PROVIDER_EMAIL`, `UAT_SEED_CUSTOMER_EMAIL`, and `UAT_SEED_PASSWORD`.
+Set these explicitly for your test accounts; built-in demo account values in
+`scripts/lib/common.sh` do not provision users in a fresh database.
 
-## Chạy
+## Seed data
+
+From the repository root in a POSIX shell:
 
 ```sh
-cd /path/to/sports-booking-be
+export UAT_SEED_PROVIDER_EMAIL='provider@example.com'
+export UAT_SEED_CUSTOMER_EMAIL='customer@example.com'
+export UAT_SEED_PASSWORD='<test-account-password>'
 sh scripts/seed-uat-data.sh
 ```
 
-Kiểm tra upload, đọc ảnh riêng tư và dọn ảnh thử trên R2 (nhập tài khoản provider sở hữu sân):
+Both accounts must use the supplied password. These are placeholders for accounts
+you have prepared. PowerShell users should run these shell commands through Git
+Bash or WSL. The booking date defaults to tomorrow in `Asia/Ho_Chi_Minh`.
+
+| Seed option | Behavior |
+| --- | --- |
+| `--api-base URL` | Override the complete API base, including `/api/v1` |
+| `--provider-email EMAIL`, `--customer-email EMAIL`, `--password PASSWORD` | Override login credentials |
+| `--booking-date YYYY-MM-DD` | Select a future booking date |
+| `--skip-payment` | Create holds without payment checkout |
+| `--refresh-gallery` | Add images where capacity remains; existing images are retained |
+| `--manifest-path FILE` | Override `scripts/uat-seed-manifest.json` |
+
+Court definitions come from [uat-courts.json](../../scripts/uat-courts.json).
+
+| Key | Court | Seed behavior |
+| --- | --- | --- |
+| `football-q9` | Saigon Seven Park - Vinhomes Grand Park | Two consecutive slots; checkout when enabled |
+| `badminton-q7` | Phú Mỹ Badminton Club | One slot; hold only |
+| `football-hn` | Hanoi Arena Mini - Cầu Giấy | One slot; hold only |
+
+The script searches configured, priced, nonclosed schedule slots, then attempts a
+hold. Conflicts cause it to try another selection; exact booking times are not
+fixed to the example times in the JSON definitions. Prices depend on the chosen
+weekday and slots. Profile names become Trần Minh Khoa (provider) and Lê Thị Mai
+(customer), with demo phone numbers.
+
+Courts are matched by `(uat-seed:<key>)` in their description. Repeated runs update
+profiles, courts, operating hours, and prices; they retain galleries unless requested
+to add more images. The marker remains in API-visible description text. Courts are
+published to `ACTIVE` by the script.
+
+## Manifest and repeat runs
+
+The manifest records the API base, booking date, account emails, court IDs, bookings,
+selected slots, amounts, hold deadlines, and payment/checkout metadata. It does not
+store the full signed checkout form. Inspect it and the script logs: individual image
+uploads or payment creation can fail while seeding continues, so a completed script
+does not prove every integration succeeded.
+
+Hold keys depend on court key, date, and selection. Repeating a run may replay an
+existing booking, including a cancelled or expired booking; it does not renew the
+hold. Choose another future date/selection or use the sandbox checkout script for a
+new scenario. Checkout creation does not extend the original hold deadline.
+
+## Booking and payment smoke test
 
 ```sh
-sh scripts/test-r2-upload.sh --court-id '<court-uuid>'
-```
+# Seed and exercise the implemented booking/payment flow
+sh scripts/test-booking-payment-flow.sh --seed-first
 
-### Luồng test API (booking + payment)
+# Reuse the existing manifest
+sh scripts/test-booking-payment-flow.sh
 
-Sau khi seed (hoặc gộp một lệnh):
-
-```sh
-# Seed + smoke test toàn endpoint (IPN giả lập local → CONFIRMED)
+# Simulate an authenticated paid IPN in a local sandbox
 sh scripts/test-booking-payment-flow.sh --seed-first --simulate-ipn
-
-# Chỉ test theo manifest đã có (không seed lại)
-sh scripts/test-booking-payment-flow.sh --simulate-ipn
 ```
 
-| Tuỳ chọn test script | Ý nghĩa |
-|---------------------|---------|
-| `--seed-first` | Gọi `seed-uat-data.sh` trước khi test |
-| `--simulate-ipn` | Gửi `POST /payments/sepay/ipn` với `SEPAY_SECRET_KEY` (đọc từ `.env`) |
-| `--manifest-path` | Manifest mặc định `scripts/uat-seed-manifest.json` |
+The script covers court search/schedule, booking queries, payment creation when
+missing, payment reads, and checkout resume. It does not cover every endpoint,
+refund placeholders, review flows, or real gateway collection.
 
-**Lưu ý:** Nếu `GET /bookings/me` trả 500, restart backend sau khi pull fix sort JPQL trên `BookingRepository`.
+| Smoke-test option | Behavior |
+| --- | --- |
+| `--seed-first` | Run seed before checks |
+| `--manifest-path FILE` | Select the manifest |
+| `--simulate-ipn` | Submit a synthetic authenticated paid IPN and check confirmation |
+| `--sepay-secret SECRET` | Supply the IPN secret; otherwise use `SEPAY_SECRET_KEY` or read that key from repository `.env` |
+| `--ipn-wait-seconds N` | Wait for worker processing (default 4 seconds) |
 
-| Tuỳ chọn | Ý nghĩa |
-|----------|---------|
-| `--booking-date yyyy-MM-dd` | Ngày đặt sân (mặc định **ngày mai**, TZ VN) |
-| `--skip-payment` | Không tạo checkout SePay |
-| `--refresh-gallery` | Thêm ảnh Pexels nếu gallery còn slot (≤ max/sân) |
-| `--manifest-path` | File JSON kết quả |
+Use synthetic IPNs only for test payments in your sandbox. The same secret must be
+configured in the backend. This tests application processing and does not transfer
+money or verify real SePay delivery. Spring itself does not load `.env` automatically.
 
-**Rate limit login:** 10 lần / 15 phút — script retry 429; nếu vẫn fail, đợi hoặc flush Redis rate limit.
+Login is limited to 10 attempts per 15 minutes. Scripts retry 429 responses within
+a bounded retry budget; if the limit remains active, wait for its window to expire.
 
-## Dữ liệu sau seed
-
-| Key | Tên hiển thị | Giá (VND/giờ) | Booking mẫu |
-|-----|----------------|---------------|-------------|
-| `football-q9` | Saigon Seven Park - Vinhomes Grand Park | T2–T6: 420k / 680k; CN: 580k–890k | **2 slot liên tiếp** 18:00–20:00 + **payment** |
-| `badminton-q7` | Phú Mỹ Badminton Club | T2–T6: 130k / 210k; CN: 190k–260k | 17:00–18:00 (HELD) |
-| `football-hn` | Hanoi Arena Mini - Cầu Giấy | T2–T6: 320k–520k; CN: 480k–620k | 12:00–13:00 (HELD) |
-
-- Marker idempotent ẩn cuối mô tả: `(uat-seed:football-q9)` — không hiện trên UI nếu FE cắt đoạn cuối (tuỳ FE).
-- Provider profile: **Trần Minh Khoa** · Customer: **Lê Thị Mai** (+ SĐT VN).
-- Giờ mở: sân bóng Q9 cuối tuần sớm hơn; cầu lông mở 5:30 sáng.
-
-## Manifest
-
-`scripts/uat-seed-manifest.json`: `courtId`, `bookingId`, slot, tổng tiền, payment/checkout (sân bóng Q9).
-
-## Làm dữ liệu “thật” hơn trên môi trường cũ
-
-1. Chạy lại script (cùng key): **cập nhật** tên/mô tả/giá/giờ qua API; gallery giữ ảnh cũ trừ khi `--refresh-gallery` và chưa đủ ảnh tối đa.
-2. Xóa sân UAT cũ (tên `UAT | ...` không có marker) trên provider portal hoặc DB nếu lộn xộn từ lần seed trước.
-3. Đổi `--booking-date` sang **Thứ 7** để test giá cuối tuần trên manifest.
-
-## SePay / IPN
-
-Return URL → frontend; IPN backend cần tunnel. Booking HELD hết hạn ~10 phút nếu chưa thanh toán.
-
-### DRAFT vs ACTIVE (hay gặp khi test SePay)
-
-| Nơi thấy sân | Trạng thái |
-|--------------|------------|
-| **Provider portal** (`GET /provider/courts`) | Cả **DRAFT** lẫn **ACTIVE** (kể cả bản UAT cũ trùng tên) |
-| **Customer search / đặt sân** | Chỉ **ACTIVE** + có giá/giờ |
-
-Bộ sân demo đủ dữ liệu (marker `uat-seed:football-q9` …) nằm trong `scripts/uat-seed-manifest.json` — thường đã **ACTIVE** sau seed.
+## R2 smoke test
 
 ```sh
-# Publish mọi sân DRAFT của provider (sân cũ thiếu giá vẫn không search được)
-sh scripts/publish-draft-courts.sh
-
-# Booking + payment mới + file HTML mở SePay sandbox
-sh scripts/sepay-sandbox-checkout.sh --seed-first --open-browser --booking-date 2026-11-03
+sh scripts/test-r2-upload.sh --court-id '<owned-court-uuid>'
 ```
 
-Thanh toán sandbox **thật**: mở `scripts/sepay-checkout.html` → chuyển khoản test theo SePay. Xác nhận booking **CONFIRMED** cần IPN tới `/api/v1/payments/sepay/ipn` (tunnel) hoặc test local dùng `--simulate-ipn` trên `test-booking-payment-flow.sh`.
+Use a provider owning that court. This checks upload, private read, and test-image
+cleanup. It requires `openssl` in addition to the shared script prerequisites.
+
+## Real SePay sandbox checkout
+
+```sh
+sh scripts/sepay-sandbox-checkout.sh --seed-first --open-browser
+```
+
+The script creates a checkout HTML form at `scripts/sepay-checkout.html`. If no
+supported browser launcher is available, open the generated file manually. The
+backend must be configured for `SEPAY_ENVIRONMENT=SANDBOX`. Complete the gateway's
+test flow before the hold deadline; do not treat a frontend redirect as payment proof.
+
+Real confirmation needs authenticated IPN delivery to
+`/api/v1/payments/sepay/ipn`; a local backend normally needs a public tunnel for the
+gateway to reach it. Local simulation is an alternative for application tests.
+The hold defaults to ten minutes (or the earliest slot start, if sooner); pending
+payment slots have a bounded settlement grace for on-time receipts, without extending
+checkout eligibility. See [Payment API](../api/modules/payment-api.md#inbox-worker).
+
+## Court visibility
+
+Provider listing includes `DRAFT` and `ACTIVE` courts. Public discovery includes
+only `ACTIVE` courts; date/time/price search also depends on configured hours,
+prices, and closures. To publish all drafts owned by the configured test provider:
+
+```sh
+sh scripts/publish-draft-courts.sh
+```
+
+Publishing alone does not configure prices or hours. Review existing UAT courts in
+the provider listing before running broad scripts; do not remove historical data
+just to hide duplicate demo names.

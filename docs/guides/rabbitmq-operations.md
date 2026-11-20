@@ -33,9 +33,11 @@ applied to booking/payment events and old messages are not intentionally discard
 These limits do not include message metadata, unacknowledged deliveries or the
 PostgreSQL outbox: monitor broker disk, queue depth and database storage as well.
 
-Booking/payment queues retain events for consumers outside this repository. No
-consumer that discards events has been added. Each real logical consumer should
-own its durable queue/binding and deduplicate using the envelope `eventId`.
+Booking/payment event queues retain events for independent logical consumers. The
+repository does not add a consumer that merely discards this backlog. Each logical
+consumer should own its durable queue/binding and deduplicate using the envelope
+`eventId`. The separate internal consumers described below do not
+drain these legacy event queues.
 
 ## Booking payment cancellation consumer
 
@@ -94,7 +96,7 @@ Monitor this DLQ separately from the email DLQ. The existing email replay endpoi
 does not replay booking notifications. After fixing the cause, use broker tooling
 to republish the preserved envelope to the main notification queue with its retry
 header reset to zero. Do not remove the DLQ source until republishing is confirmed.
-There is no application replay endpoint for this queue in this change.
+There is no application replay endpoint for this queue.
 
 ## Email retry and recovery
 
@@ -118,7 +120,8 @@ at most 100 DLQ messages per request:
 POST /api/v1/admin/notifications/email-dlq/replay?limit=25
 ```
 
-The response contains `replayed`. Each message retains its event ID and receives a
+The response is a bare JSON object containing `replayed` (no `ApiResponse` envelope).
+A limit outside 1–100 returns 400 with no body. Each message retains its event ID and receives a
 fresh retry budget. It is ACKed in the DLQ only after its publication to the main
 queue is confirmed. Concurrent replay requests settle their own deliveries. A
 partial batch failure can have already replayed earlier messages; inspect queue
@@ -142,28 +145,18 @@ Authenticated ADMIN endpoints:
 | `GET /api/v1/admin/outbox/failed?page=0` | Up to 50 event IDs/types/attempt counts; no payloads |
 | `POST /api/v1/admin/outbox/{eventId}/replay` | Atomically reset one FAILED event's attempts and retry time; keep its event ID |
 
-Replay returns 202 when reset, or 409 if the ID is absent or is no longer FAILED.
+These admin routes use bare responses: stats is a JSON object, failed events is a
+JSON array (not `PageResponse`), and replay has no body. Negative failed-list `page`
+returns 400 with no body. Replay returns 202 when reset, or 409 with no body if the
+ID is absent or is no longer FAILED.
 It cannot reset a PENDING/PUBLISHED event. Monitor pending age/depth and failed
 counts; alert on terminal-outbox/DLQ error logs. Broker alarms still require the
 deployment's monitoring system.
 
-## Guarantees and validation
+## Delivery guarantee
 
-Email transport is at least once. A remote send accepted by SendGrid followed by
-a failed database commit can still cause a duplicate on redelivery. Dedup records
-created by the older pre-send implementation remain ambiguous; do not delete them
-in bulk. Investigate provider delivery history before any manual repair.
+Email transport is at least once. A send accepted by SendGrid followed by a failed
+database commit can still cause a duplicate on redelivery. Investigate provider
+delivery history before manually changing deduplication records.
 
-Run focused unit/security tests and Docker-backed recovery tests:
-
-```sh
-./mvnw '-Dtest=EmailConsumerTest,EmailConsumerAdapterTest,EmailQueuePublisherTest,EmailRecoveryServiceTest,OutboxRetryTest,MessagingAdminSecurityTest,ArchitectureTest' test
-./mvnw -P integration '-Dtest=EmailDeliveryDedupServiceTest,EmailRecoveryIntegrationTest,OutboxServiceIntegrationTest' test
-./mvnw '-Dtest=BookingNotificationConsumerTest,BookingNotificationHandlerTest,BookingNotificationRecoveryServiceTest,ArchitectureTest' test
-./mvnw -P integration '-Dtest=BookingNotificationConsumerIntegrationTest' test
-```
-
-The integration tests cover PostgreSQL rollback/concurrent delivery, atomic outbox
-replay, quorum TTL retry return and confirmed DLQ replay. They use disposable
-Testcontainers services and need a running Docker daemon. They do not prove
-production cluster failover or application-specific alert delivery.
+Test setup and verification commands are in [local development](local-development.md#test-and-verify).
