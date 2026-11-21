@@ -17,8 +17,8 @@ failure. For a custom vhost, set `RABBITMQ_VHOST_URL_ENCODED` to its URL-encoded
 
 For an existing Docker broker, apply/update the same limits without restarting it:
 
-```powershell
-.\scripts\configure-rabbitmq.ps1 -VirtualHost '/'
+```sh
+sh scripts/configure-rabbitmq.sh --virtual-host '/'
 ```
 
 For a managed broker, apply the JSON policy using the provider's management tools.
@@ -33,9 +33,37 @@ applied to booking/payment events and old messages are not intentionally discard
 These limits do not include message metadata, unacknowledged deliveries or the
 PostgreSQL outbox: monitor broker disk, queue depth and database storage as well.
 
-Booking/payment queues retain events for consumers outside this repository. No
-consumer that discards events has been added. Each real logical consumer should
-own its durable queue/binding and deduplicate using the envelope `eventId`.
+Booking/payment event queues retain events for independent logical consumers. The
+repository does not add a consumer that merely discards this backlog. Each logical
+consumer should own its durable queue/binding and deduplicate using the envelope
+`eventId`. The separate internal consumers described below do not
+drain these legacy event queues.
+
+## Booking payment cancellation consumer
+
+`sports.payment.booking-cancelled` is a separate durable quorum queue bound to
+`sports.booking` for `booking.cancelled`. The listener ID is
+`bookingPaymentCancellationConsumer`. It validates the event envelope and locks
+booking then payment. Only pending payments are cancelled, with actor/reason history;
+missing payments and payments already terminal are successful no-ops. Duplicate
+deliveries do not create duplicate history. Collected payments and gateway attempt
+outcomes are preserved; gateway cancellation/refund remain separate operations.
+
+Transient failures go through `sports.payment.booking-cancelled.retry.1`, `.retry.2`
+and `.retry.3` after 10 seconds, 1 minute and 5 minutes, using header
+`x-payment-cancellation-retry-count`. Malformed events, unsupported versions, booking
+state mismatches and exhausted retries go to `sports.payment.booking-cancelled.dlq`.
+Copies are persistent; publisher confirms and successful routing are required before
+the original is acknowledged. Failed forwarding requeues the original after a
+one-second pause. Retry queues dead-letter at least once through exchange
+`sports.payment.booking-cancellation` and routing key `booking.cancelled`.
+
+The main queue and DLQ cap ready messages at 10,000 / 64 MiB; retry queues cap bodies
+at 64 MiB. Overflow rejects publications. These limits are declared directly in queue
+arguments; the existing backlog policy does not need to match these new queues.
+Monitor the DLQ and investigate the booking/payment before replaying through broker
+operations; there is no new HTTP replay endpoint. New bindings receive future events
+only, so historical cancellations require a controlled backfill.
 
 ## Booking notification consumer
 
@@ -68,7 +96,7 @@ Monitor this DLQ separately from the email DLQ. The existing email replay endpoi
 does not replay booking notifications. After fixing the cause, use broker tooling
 to republish the preserved envelope to the main notification queue with its retry
 header reset to zero. Do not remove the DLQ source until republishing is confirmed.
-There is no application replay endpoint for this queue in this change.
+There is no application replay endpoint for this queue.
 
 ## Email retry and recovery
 
@@ -92,7 +120,8 @@ at most 100 DLQ messages per request:
 POST /api/v1/admin/notifications/email-dlq/replay?limit=25
 ```
 
-The response contains `replayed`. Each message retains its event ID and receives a
+The response is a bare JSON object containing `replayed` (no `ApiResponse` envelope).
+A limit outside 1–100 returns 400 with no body. Each message retains its event ID and receives a
 fresh retry budget. It is ACKed in the DLQ only after its publication to the main
 queue is confirmed. Concurrent replay requests settle their own deliveries. A
 partial batch failure can have already replayed earlier messages; inspect queue
@@ -116,28 +145,18 @@ Authenticated ADMIN endpoints:
 | `GET /api/v1/admin/outbox/failed?page=0` | Up to 50 event IDs/types/attempt counts; no payloads |
 | `POST /api/v1/admin/outbox/{eventId}/replay` | Atomically reset one FAILED event's attempts and retry time; keep its event ID |
 
-Replay returns 202 when reset, or 409 if the ID is absent or is no longer FAILED.
+These admin routes use bare responses: stats is a JSON object, failed events is a
+JSON array (not `PageResponse`), and replay has no body. Negative failed-list `page`
+returns 400 with no body. Replay returns 202 when reset, or 409 with no body if the
+ID is absent or is no longer FAILED.
 It cannot reset a PENDING/PUBLISHED event. Monitor pending age/depth and failed
 counts; alert on terminal-outbox/DLQ error logs. Broker alarms still require the
 deployment's monitoring system.
 
-## Guarantees and validation
+## Delivery guarantee
 
-Email transport is at least once. A remote send accepted by SendGrid followed by
-a failed database commit can still cause a duplicate on redelivery. Dedup records
-created by the older pre-send implementation remain ambiguous; do not delete them
-in bulk. Investigate provider delivery history before any manual repair.
+Email transport is at least once. A send accepted by SendGrid followed by a failed
+database commit can still cause a duplicate on redelivery. Investigate provider
+delivery history before manually changing deduplication records.
 
-Run focused unit/security tests and Docker-backed recovery tests:
-
-```powershell
-.\mvnw.cmd '-Dtest=EmailConsumerTest,EmailConsumerAdapterTest,EmailQueuePublisherTest,EmailRecoveryServiceTest,OutboxRetryTest,MessagingAdminSecurityTest,ArchitectureTest' test
-.\mvnw.cmd -P integration '-Dtest=EmailDeliveryDedupServiceTest,EmailRecoveryIntegrationTest,OutboxServiceIntegrationTest' test
-.\mvnw.cmd '-Dtest=BookingNotificationConsumerTest,BookingNotificationHandlerTest,BookingNotificationRecoveryServiceTest,ArchitectureTest' test
-.\mvnw.cmd -P integration '-Dtest=BookingNotificationConsumerIntegrationTest' test
-```
-
-The integration tests cover PostgreSQL rollback/concurrent delivery, atomic outbox
-replay, quorum TTL retry return and confirmed DLQ replay. They use disposable
-Testcontainers services and need a running Docker daemon. They do not prove
-production cluster failover or application-specific alert delivery.
+Test setup and verification commands are in [local development](local-development.md#test-and-verify).

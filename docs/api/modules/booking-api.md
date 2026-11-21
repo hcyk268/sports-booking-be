@@ -1,6 +1,6 @@
 # Booking API
 
-Booking supports creating a temporary hold, reading bookings, and cancelling them. Shared response and error rules are documented in [API conventions](../api-conventions.md).
+Booking supports creating a temporary hold, reading bookings, cancellation, and completion. Shared response and error rules are documented in [API conventions](../api-conventions.md).
 
 Base path: `/api/v1/bookings`.
 
@@ -14,13 +14,13 @@ Requires an authenticated `CUSTOMER` and an `Idempotency-Key` header (nonblank, 
 {
   "courtId": "11111111-1111-1111-1111-111111111111",
   "slots": [
-    { "date": "2026-10-28", "startTime": "08:00", "endTime": "10:00" },
-    { "date": "2026-10-28", "startTime": "18:00", "endTime": "20:00" }
+    { "date": "2026-11-21", "startTime": "08:00", "endTime": "10:00" },
+    { "date": "2026-11-21", "startTime": "18:00", "endTime": "20:00" }
   ]
 }
 ```
 
-Each requested interval must match one configured, priced and open schedule slot. Slots must be in the future and cannot overlap each other. The server calculates the price from the court configuration; the client does not submit a price. Successful requests return `201` with a `HELD` booking and its price snapshots. The hold expires after `app.booking.hold.duration` (default 10 minutes), or at the earliest slot start if sooner. A background worker expires holds and frees their slots.
+Each requested interval must match one configured, priced and open schedule slot. Slots must be in the future and cannot overlap each other. The server calculates the price from the court configuration; the client does not submit a price. Successful requests return `201` with a `HELD` booking and its price snapshots. The hold expires after `app.booking.hold.duration` (default 10 minutes), or at the earliest slot start if sooner. A background worker expires holds and frees their slots. For `PENDING_PAYMENT`, release is deferred by the bounded settlement grace (default two minutes) so an on-time IPN can settle; checkout still closes at the original deadline. See the [Payment API](payment-api.md#inbox-worker).
 
 Repeating the same request with the same customer and idempotency key returns the existing booking, even if its status has changed. Reusing that key for a different court or selection returns `409 IDEMPOTENCY_KEY_REUSED`. Selected slots are locked in stable order across instances. A PostgreSQL exclusion constraint is the final protection against concurrent overlapping bookings.
 
@@ -91,6 +91,34 @@ Requires an authenticated customer who owns the booking, a provider who owns eve
 
 The endpoint returns the updated booking with status `CANCELLED`. Every slot becomes `CANCELLED` and is available for a new booking. The change, status history, and `booking.cancelled` outbox event commit together. `HELD`, `PENDING_PAYMENT`, and `CONFIRMED` bookings can be cancelled; `CANCELLED`, `EXPIRED`, and `COMPLETED` bookings return `409 BOOKING_CANCELLATION_NOT_ALLOWED`. A stale version returns `409 OPTIMISTIC_LOCK_CONFLICT`. A missing or inaccessible booking returns `404 BOOKING_NOT_FOUND`.
 
+## Complete a booking
+
+`POST /api/v1/bookings/{id}/completion`
+
+Requires an authenticated `PROVIDER` owning every court in the booking, or an
+`ADMIN`. No request body or version parameter is required. Only a `CONFIRMED`
+booking with at least one slot and all slot end times at or before the current
+server time can become `COMPLETED`. The service locks the booking, records completion
+and status history, and returns the updated `BookingResponse` with `completedAt`.
+Repeating completion for an accessible `COMPLETED` booking returns it unchanged.
+
+A missing or inaccessible booking returns `404 BOOKING_NOT_FOUND`; an invalid
+lifecycle/time returns `409 BOOKING_COMPLETION_NOT_ALLOWED`. Completion enables
+[customer reviews](review-api.md). There is no automatic completion scheduler in
+this implementation.
+
+## Response data
+
+Create, detail, cancellation, and completion return `ApiResponse<BookingResponse>`;
+lists return `ApiResponse<PageResponse<BookingResponse>>`. A booking includes `id`,
+`bookingCode`, `customerId`, `totalAmount`, `currency`, `status`, `holdExpiresAt`,
+confirmation/cancellation/completion timestamps, cancellation actor/reason, `version`,
+`createdAt`, and all selected `slots`. Use OpenAPI for the full slot schema.
+
 ## Current scope
 
-Payment, booking confirmation, and refunds are not implemented yet. Cancelling a confirmed booking currently records the state change and publishes its event; no payment reversal is performed by this module.
+Payment checkout and IPN booking confirmation are implemented in the payment module.
+After booking cancellation commits, a payment consumer asynchronously cancels any
+existing `PENDING` payment and records its cancellation history. No payment is a
+successful no-op. Collected payments retain `SUCCEEDED`; cancellation does not
+perform a gateway reversal or refund. See [Payment API](payment-api.md#payment-state-after-booking-cancellation).

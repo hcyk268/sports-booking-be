@@ -1,12 +1,12 @@
 # System Architecture
 
-This document describes the architecture implemented in the current backend. It is intended for engineers changing module boundaries, persistence, authentication, email delivery, or image storage. HTTP contracts and field-level business rules belong in the [API documentation](../api/README.md).
+Runtime components and transaction boundaries of the backend. HTTP contracts belong in the [API reference](../api/README.md); Java dependencies and ownership are defined in [module boundaries](module-boundaries.md).
 
 ## 1. Scope and architectural style
 
 Sports Booking is a **Spring Boot modular monolith**. One application process serves the HTTP API and runs scheduled/background workers. Spring Modulith defines and verifies the module boundaries; it does not deploy the modules as separate services.
 
-The implemented product scope is identity and access management, court discovery and provider management, outbound email notifications, shared image uploads, booking holds, queries, and cancellation. Court schedules describe operating hours, prices, and closures. Booking creation validates these rules and checks occupancy before persisting a hold. **Payment, confirmation, refunds, and booking-aware public availability are not implemented yet.** An open schedule slot is not a reservation guarantee until a booking hold is committed.
+The implemented product scope includes identity and access management, court discovery and provider management, inbox/email notifications with SSE hints, shared image uploads, booking holds/queries/cancellation/completion, SePay checkout and IPN settlement, and completed-booking reviews. Court schedules describe operating hours, prices, and closures; booking creation checks occupancy before committing a hold. **Manual payment reconciliation, admin refund operations, and booking-aware public availability are not implemented yet.** An open schedule slot is not a reservation guarantee.
 
 The application uses Java 21, Spring Boot, Spring Data JPA, Spring Security, Flyway, PostgreSQL, Redis, RabbitMQ, SendGrid, and Cloudflare R2. R2 can be disabled by configuration; the upload initiation endpoint then returns an unavailable error.
 
@@ -17,10 +17,12 @@ flowchart LR
     Client[Web or API client] -->|HTTPS /api/v1| App[Sports Booking application]
     Client -->|Presigned PUT and GET| R2[(Private Cloudflare R2 bucket)]
     App -->|JPA and Flyway| PG[(PostgreSQL)]
-    App -->|Sessions, tokens, OTP, rate limits, cache| Redis[(Redis)]
-    App -->|Publish booking events; publish and consume email messages| MQ[(RabbitMQ)]
+    App -->|Sessions, tokens, OTP, locks, cache, notification Pub/Sub| Redis[(Redis)]
+    App -->|Booking/payment events, notification and email delivery| MQ[(RabbitMQ)]
     App -->|Verify, promote, delete, and sign objects| R2
     App -->|Send email| SG[SendGrid]
+    Client -->|Submit signed checkout form| SePay[SePay]
+    SePay -->|Authenticated IPN| App
 ```
 
 The diagram shows logical communication, not deployment topology. The API, outbox relay, upload cleanup task, and RabbitMQ listener run in the same application. The repository's [Docker Compose file](../../docker-compose.yml) starts PostgreSQL, Redis, and RabbitMQ for local development; it does not deploy the application, R2, or SendGrid.
@@ -29,36 +31,20 @@ The diagram shows logical communication, not deployment topology. The API, outbo
 
 | Store | Responsibility | Persistence model |
 | --- | --- | --- |
-| PostgreSQL | Users, roles, permissions, courts, schedules, prices, closures, bookings, booking slots/history, image metadata, upload assets, outbox events, and processed email deliveries | System of record; schema changed through Flyway migrations |
-| Redis | Session state, refresh-token hashes, token versions and blacklist, verification tokens, OTPs, pending permission changes, rate limits, and user-details cache | Expiring operational state; required by current authentication flows |
-| RabbitMQ | Booking event exchange, email delivery queue, and dead-letter queue | Message transport; not the source of business data |
+| PostgreSQL | Users, roles, permissions, courts, schedules, prices, closures, bookings, booking slots/history, payments/attempts/receipts/inbox/refund records, reviews, notifications, image metadata, upload assets, outbox events, and processed email deliveries | System of record; schema changed through Flyway migrations |
+| Redis | Session state, refresh-token hashes, token versions and blacklist, verification tokens, OTPs, pending permission changes, rate limits, slot/idempotency locks, user-details cache, and best-effort notification Pub/Sub | Expiring operational state; required by current authentication flows |
+| RabbitMQ | Booking/payment exchanges and event queues, booking-notification and payment-cancellation queues, email delivery, retries, and dead-letter queues | Message transport; not the source of business data |
 | Cloudflare R2 | Staged and attached image bytes | Private object storage; PostgreSQL holds the corresponding metadata |
 
 ## 3. Modules and dependency rules
 
-The root package is `dev.booking.sports`. Each top-level module is declared in its `package-info.java`; [ArchitectureTest](../../src/test/java/dev/booking/sports/ArchitectureTest.java) calls `ApplicationModules.verify()` to check the Spring Modulith structure. See [Module Boundaries](./module-boundaries.md) for ownership and the public interfaces between modules.
+The root package is `dev.booking.sports`. Spring Modulith verifies `package-info.java`
+dependency declarations through [ArchitectureTest](../../src/test/java/dev/booking/sports/ArchitectureTest.java).
+The [module boundaries](module-boundaries.md) reference defines ownership and named interfaces.
 
-```mermaid
-flowchart LR
-    Identity[identity] --> Shared[shared - open module]
-    Court[court] --> Shared
-    Booking[booking] --> Shared
-    Booking -->|court :: api| Court
-    Notification[notification] --> Shared
-    Notification -->|identity :: events| Identity
-```
-
-| Module | Owns | Entry points and dependencies |
-| --- | --- | --- |
-| `identity` | Accounts, credentials, RBAC, JWT/session lifecycle, verification and OTP flows | Auth/user/role/permission controllers; depends on `shared` |
-| `court` | Sports catalog, court lifecycle, operating hours, price rules, closures, schedules, and gallery | Public and provider court controllers; depends on `shared` |
-| `booking` | Holds, selected slots, price snapshots, reservation state, overlap protection, and status history | Hold creation, role-scoped queries, and cancellation; depends on `shared` and `court :: api` |
-| `notification` | Email templates, queue publication, consumer, SendGrid adapter, and delivery deduplication | Consumes `identity :: events` and uses `shared` outbox infrastructure |
-| `shared` | API envelopes, errors, persistence helpers, rate limiting, outbox infrastructure, and upload protocol | An **open** Spring Modulith module used by the feature modules |
-
-`identity.domain.event` is the named `events` interface exposed to `notification`. `court` supplies `CourtImageUploadPolicy` to the shared upload service as a Spring bean; the upload service receives the `UploadPolicy` interface and does not import court classes. Court image management calls `UploadService` to claim, release, and read assets.
-
-Within a feature module, `api` contains controllers and request/response DTOs, `application` contains use cases and policies, and `domain` contains models and repository interfaces. Identity also has `infrastructure` adapters for Redis and security. Changes should keep HTTP DTOs out of domain logic, put business rules in the owning module, and avoid direct imports across feature modules except for an explicitly exposed interface such as `identity :: events`. If a new module needs a shared capability, define a narrow contract rather than depending on another module's internal repository or entity.
+Most feature modules use `api`, `application`, `domain`, and infrastructure packages.
+The compact `review` module keeps its classes at the module root. Business rules and
+persistence remain in the owning module; cross-module access uses public contracts.
 
 ## 4. Synchronous request path
 
@@ -103,9 +89,15 @@ sequenceDiagram
     Consumer->>MQ: Confirm retry/DLQ publication on failure; then ack
 ```
 
-The relay selects pending rows with `FOR UPDATE SKIP LOCKED`, routes each event through an `OutboxPublicationHandler`, waits for a RabbitMQ publisher confirm, rejects returned/unroutable messages even when the broker acknowledges them, and records publication or retry state. Outbox failures use exponential backoff from 5 seconds up to 5 minutes. After the configured maximum attempts, the outbox event becomes `FAILED` and logs an error for operator action. Outbox polling uses its own scheduler; expiry, inbox and cleanup jobs use a separate scheduler pool. The email consumer inserts the outbox event ID into `processed_email_deliveries` and sends the email within the same database transaction. It acknowledges only after commit. Concurrent deliveries wait on the unique constraint, then skip a committed delivery or take over after rollback. A failed send rolls back the insert. Transient failures (network errors, HTTP 408/429/5xx, or database failures) are published with confirms to quorum retry queues with delays of 10 seconds, 1 minute and 5 minutes. Permanent failures, malformed messages and exhausted retries are published with confirms to `sports.notification.email.dlq`. The source is acknowledged only after the new publication is routed and confirmed. If forwarding fails, the source is requeued with a one-second pause to bound the failure loop. Retry queues use at-least-once dead-lettering back to the email exchange.
+The relay locks pending rows, publishes through an `OutboxPublicationHandler`, and
+marks publication only after successful routing and publisher confirmation. Failed
+publications remain retryable and eventually require operator replay.
 
-This uses **at-least-once message transport with application-level deduplication**, not an end-to-end exactly-once email guarantee. A crash before commit rolls back the delivery ID so redelivery can send again. If SendGrid accepts an email and the transaction subsequently fails or the process crashes before commit, redelivery can send a duplicate. The transaction holds a database connection while calling SendGrid, whose HTTP client has bounded connection and socket timeouts. Existing delivery IDs from the previous implementation remain treated as completed; ambiguous historical deliveries require operator investigation. Operators should inspect both failed outbox events and the email dead-letter queue; ADMIN-only replay endpoints are documented in [the RabbitMQ operations guide](../guides/rabbitmq-operations.md). Queue names and routing keys are defined in `NotificationRabbitConfig`.
+The email consumer inserts the event ID into `processed_email_deliveries` and calls
+SendGrid in the same database transaction, acknowledging after commit. This provides
+at-least-once delivery with deduplication. If SendGrid accepts an email but the database
+commit fails, redelivery may send a duplicate. Retry queues, limits and recovery
+endpoints are documented in [RabbitMQ operations](../guides/rabbitmq-operations.md).
 
 ## 6. Image upload and court gallery
 
@@ -137,12 +129,32 @@ The current purpose is `COURT_IMAGE`. A policy in `court` checks provider owners
 
 Object storage and PostgreSQL do not share a transaction. The upload lifecycle and cleanup task handle abandoned or expired objects; changes to this flow must account for partial failures between R2 and database operations. `LegacyImageReader` still supports older gallery records without an upload ID.
 
-## 7. Runtime and change guidance
+## 7. Payment, completion, reviews, and inbox notifications
 
-- **Configuration:** `application.yml` supplies common defaults; `application-dev.yml`, `application-test.yml`, and `application-prod.yml` select environment-specific connections and behavior. Environment variables supply credentials and endpoints. Use [.env.example](../../.env.example) as the variable inventory; do not commit real secrets.
-- **Schema:** add a versioned script under `src/main/resources/db/migration` for persistent data changes. Both development and production enable Flyway and validate the JPA mapping against the migrated schema.
-- **Background work:** the outbox relay polls on `app.outbox.poll-interval`; upload cleanup runs only when R2 is enabled. The test profile disables automatic outbox relay and RabbitMQ listener startup so tests can control those paths.
-- **Verification:** run the module boundary test when changing dependencies, focused tests for the affected use case, and the CI build. [CI](../../.github/workflows/ci.yml) runs Maven verification against PostgreSQL, Redis, and RabbitMQ services and has a separate Testcontainers integration job.
-- **API changes:** update the [module API docs](../api/README.md), shared conventions or error catalog when behavior changes. Keep this document focused on component responsibilities and cross-component flows rather than duplicating endpoint details.
+The browser submits the server-signed SePay form; checkout creation does not collect
+money. Authenticated IPNs commit to a PostgreSQL inbox before acknowledgement. A
+leased worker validates financial facts and locks booking before payment, then
+settles payment, confirms booking/slots, and writes lifecycle outbox events in one
+transaction. Settlement grace retains pending-payment slots briefly for an on-time
+receipt; late or anomalous receipts require review. Cancellation events asynchronously
+cancel pending payments without initiating gateway refunds. See the
+[Payment API](../api/modules/payment-api.md) and [database contract](../payment-schema.md).
 
-The current repository has health/info Actuator endpoints, but does not contain production deployment manifests, monitoring dashboards, backup procedures, or an incident runbook. Those operational concerns require environment-specific documentation before production deployment.
+A provider owning every court, or an admin, can complete a confirmed booking after
+all slots end. Customers may then create one review for that booking. Review owns
+comments, ratings, provider replies, and moderation; eligibility and court ownership
+are obtained through public facades. See [Review API](../api/modules/review-api.md).
+
+A notification-owned RabbitMQ consumer creates customer inbox entries and booking
+email intents from confirmed/cancelled/expired events. Inbox writes and email intents
+commit together; duplicate deliveries do not create another entry or intent. REST is
+the source of inbox state. After-commit Redis Pub/Sub delivers best-effort SSE hints
+across instances; reconnecting clients must resynchronize through REST because hints
+have no durable replay. See [Notification API](../api/modules/notification-api.md).
+
+## 8. Runtime configuration
+
+- Environment profiles select connections and credentials; see [local development](../guides/local-development.md).
+- Persistent changes use versioned Flyway migrations under `src/main/resources/db/migration`; Hibernate validates the resulting schema.
+- The outbox relay has a dedicated scheduler. Booking expiry, payment inbox processing and upload cleanup run as background jobs.
+- [CI](../../.github/workflows/ci.yml) runs Maven verification and a separate Testcontainers integration job.
