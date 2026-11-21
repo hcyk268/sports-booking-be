@@ -17,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +44,8 @@ class BookingPaymentCancellationIntegrationTest extends BaseIntegrationTest {
 
     @BeforeEach
     void fixtures() {
+        listeners.stop();
+        purgeQueues();
         customer = UUID.randomUUID();
         booking = UUID.randomUUID();
         payment = UUID.randomUUID();
@@ -66,10 +69,20 @@ class BookingPaymentCancellationIntegrationTest extends BaseIntegrationTest {
     @AfterEach
     void cleanup() {
         listeners.getListenerContainer("bookingPaymentCancellationConsumer").stop();
+        purgeQueues();
         jdbc.update("delete from payment_status_history where payment_id=?", payment);
         jdbc.update("delete from payments where id=?", payment);
         jdbc.update("delete from bookings where id=?", booking);
         jdbc.update("delete from users where id=?", customer);
+    }
+
+    private void purgeQueues() {
+        var admin = new RabbitAdmin(rabbit);
+        admin.purgeQueue(BookingCancellationRabbitConfig.QUEUE);
+        admin.purgeQueue(BookingCancellationRabbitConfig.DLQ);
+        for (int attempt = 1; attempt <= BookingCancellationRabbitConfig.MAX_RETRIES; attempt++) {
+            admin.purgeQueue(BookingCancellationRabbitConfig.retryQueue(attempt));
+        }
     }
 
     private String paymentStatus() {
@@ -119,12 +132,15 @@ class BookingPaymentCancellationIntegrationTest extends BaseIntegrationTest {
                 "dev.booking.sports.booking.infrastructure.messaging.BookingEventMessage");
         var listener = listeners.getListenerContainer("bookingPaymentCancellationConsumer");
         listener.start();
-        rabbit.send(BookingCancellationRabbitConfig.SOURCE_EXCHANGE, "booking.cancelled", raw);
+        // Target this consumer only; the shared booking exchange also fans out to notifications.
+        rabbit.send("", BookingCancellationRabbitConfig.QUEUE, raw);
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
             assertThat(paymentStatus()).isEqualTo("CANCELLED");
             assertThat(cancellationHistoryCount()).isEqualTo(1);
         });
         service.cancelPendingPayment(event);
         assertThat(cancellationHistoryCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from notifications where recipient_id=?",
+                Integer.class, customer)).isZero();
     }
 }
