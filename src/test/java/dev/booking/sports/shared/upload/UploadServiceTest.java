@@ -22,6 +22,7 @@ class UploadServiceTest {
     private final UploadPolicy policy = mock(UploadPolicy.class);
     private final UUID owner = UUID.randomUUID(), resource = UUID.randomUUID(), id = UUID.randomUUID();
     private UploadService service;
+    private ObjectStorageRegistry storages;
     private UploadAsset asset;
     private byte[] png;
 
@@ -29,7 +30,10 @@ class UploadServiceTest {
         when(policy.purpose()).thenReturn("COURT_IMAGE");
         when(policy.maxBytes()).thenReturn(5242880L);
         when(policy.contentTypes()).thenReturn(Set.of("image/png", "image/jpeg"));
-        service = new UploadService(repository, storage, new ImageVerifier(), List.of(policy));
+        when(storage.provider()).thenReturn(StorageProvider.R2);
+        storages = new ObjectStorageRegistry(List.of(storage), "r2");
+        clearInvocations(storage);
+        service = new UploadService(repository, storages, new ImageVerifier(), List.of(policy));
         var output = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), "png", output);
         png = output.toByteArray();
@@ -130,7 +134,7 @@ class UploadServiceTest {
     }
     @Test void cleanupRetriesStorageFailureWithoutLosingPendingDeletion() {
         asset.setStatus(DELETE_PENDING);
-        var cleanup = new UploadCleanup(repository, storage);
+        var cleanup = new UploadCleanup(repository, storages);
         doThrow(new ApiException(UploadErrorCode.UPLOAD_UNAVAILABLE)).when(storage).delete(asset.getStorageKey());
         error(() -> cleanup.clean(id), UploadErrorCode.UPLOAD_UNAVAILABLE);
         assertThat(asset.getStatus()).isEqualTo(DELETE_PENDING);
@@ -138,8 +142,66 @@ class UploadServiceTest {
         cleanup.clean(id);
         assertThat(asset.getStatus()).isEqualTo(DELETED);
     }
+    @Test void newS3UploadsPersistProviderAndUseS3ForCompletionReadAndCleanup() {
+        var s3 = mock(ObjectStorage.class);
+        when(s3.provider()).thenReturn(StorageProvider.S3);
+        var registry = new ObjectStorageRegistry(List.of(storage, s3), "s3");
+        var s3Service = new UploadService(repository, registry, new ImageVerifier(), List.of(policy));
+        when(repository.saveAndFlush(any())).thenAnswer(call -> {
+            asset = call.getArgument(0); asset.setId(id); return asset;
+        });
+        when(s3.presignPut(anyString(), anyString(), eq(id.toString()), any()))
+                .thenReturn(new ObjectStorage.PutGrant(URI.create("https://bucket.s3.ap-southeast-1.amazonaws.com/staging/id"), Map.of()));
+        s3Service.initiate(owner, new InitiateRequest("COURT_IMAGE", resource, "a.png", "image/png", png.length));
+        assertThat(asset.getStorageProvider()).isEqualTo(StorageProvider.S3);
+        when(repository.lockById(id)).thenAnswer(call -> Optional.of(asset));
+        when(s3.head(asset.getStagingKey())).thenReturn(new ObjectStorage.Metadata(png.length, "image/png", "etag", Map.of("upload-id", id.toString())));
+        when(s3.readForValidation(asset.getStagingKey(), "etag", png.length)).thenReturn(png);
+        assertThat(s3Service.complete(owner, id).status()).isEqualTo("READY");
+        verify(s3).promote(asset.getStagingKey(), asset.getStorageKey(), "etag");
+        s3Service.claim(owner, id, "COURT_IMAGE", resource);
+        when(repository.findById(id)).thenReturn(Optional.of(asset));
+        URI url = URI.create("https://bucket.s3.ap-southeast-1.amazonaws.com/assets/id.png");
+        when(s3.presignGet(asset.getStorageKey(), Duration.ofSeconds(60))).thenReturn(url);
+        assertThat(s3Service.readUrl(id)).isEqualTo(url);
+        s3Service.release(id);
+        new UploadCleanup(repository, registry).clean(id);
+        verify(s3).delete(asset.getStagingKey());
+        verify(s3).delete(asset.getStorageKey());
+        assertThat(asset.getStatus()).isEqualTo(DELETED);
+        verify(storage, never()).head(anyString());
+        verify(storage, never()).presignGet(anyString(), any());
+        verify(storage, never()).delete(anyString());
+    }
+
+    @Test void switchingNewUploadsToS3KeepsExistingAssetsOnR2() {
+        var s3 = mock(ObjectStorage.class);
+        when(s3.provider()).thenReturn(StorageProvider.S3);
+        var registry = new ObjectStorageRegistry(List.of(storage, s3), "s3");
+        var switched = new UploadService(repository, registry, new ImageVerifier(), List.of(policy));
+        clearInvocations(s3);
+        storedPng();
+        switched.complete(owner, id);
+        verify(storage).promote(asset.getStagingKey(), asset.getStorageKey(), "\"version-a\"");
+        asset.setStatus(ATTACHED);
+        when(repository.findById(id)).thenReturn(Optional.of(asset));
+        switched.readUrl(id);
+        verify(storage).presignGet(asset.getStorageKey(), Duration.ofSeconds(60));
+        switched.release(id);
+        new UploadCleanup(repository, registry).clean(id);
+        verify(storage).delete(asset.getStagingKey());
+        verify(storage).delete(asset.getStorageKey());
+        verifyNoInteractions(s3);
+    }
+
+    @Test void disabledStorageFailsBeforeSavingAnUpload() {
+        var disabled = new UploadService(repository, new ObjectStorageRegistry(List.of(), "s3"), new ImageVerifier(), List.of(policy));
+        error(() -> disabled.initiate(owner, new InitiateRequest("COURT_IMAGE", resource, "a.png", "image/png", 1)), UploadErrorCode.UPLOAD_UNAVAILABLE);
+        verify(repository, never()).saveAndFlush(any());
+    }
+
     @Test void cleanupNeverDeletesAttachedOrUnexpiredAssets() {
-        var cleanup = new UploadCleanup(repository, storage);
+        var cleanup = new UploadCleanup(repository, storages);
         cleanup.clean(id);
         asset.setStatus(ATTACHED);
         asset.setExpiresAt(Instant.now().minusSeconds(1));

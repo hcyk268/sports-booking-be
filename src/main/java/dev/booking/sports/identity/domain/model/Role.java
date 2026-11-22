@@ -2,6 +2,7 @@ package dev.booking.sports.identity.domain.model;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import dev.booking.sports.shared.persistence.CreatableEntity;
@@ -46,8 +47,12 @@ public class Role extends CreatableEntity {
 	private Set<RolePermission> rolePermissions = new HashSet<>();
 
 	public void replacePermissions(Set<Permission> permissions) {
-		rolePermissions.clear();
-		permissions.forEach(permission -> rolePermissions.add(RolePermission.of(this, permission)));
+		Set<UUID> requestedIds = permissions.stream().map(Permission::getId).collect(Collectors.toSet());
+		rolePermissions.removeIf(link -> !requestedIds.contains(link.getPermission().getId()));
+		Set<UUID> retainedIds = rolePermissions.stream()
+				.map(link -> link.getPermission().getId()).collect(Collectors.toSet());
+		permissions.stream().filter(permission -> !retainedIds.contains(permission.getId()))
+				.forEach(permission -> rolePermissions.add(RolePermission.of(this, permission)));
 	}
 
 	public Set<String> permissionCodes() {

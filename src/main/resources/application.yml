@@ -124,6 +124,14 @@ app:
     from-name: ${SENDGRID_FROM_NAME:Sports Booking}
 
   storage:
+    provider: ${STORAGE_PROVIDER:r2}
+    s3:
+      enabled: ${S3_ENABLED:false}
+      region: ${S3_REGION:${AWS_REGION:}}
+      bucket-name: ${S3_BUCKET_NAME:}
+      access-key: ${S3_ACCESS_KEY_ID:}
+      secret-key: ${S3_SECRET_ACCESS_KEY:}
+      session-token: ${S3_SESSION_TOKEN:}
     r2:
       enabled: ${R2_ENABLED:false}
       account-id: ${R2_ACCOUNT_ID:}

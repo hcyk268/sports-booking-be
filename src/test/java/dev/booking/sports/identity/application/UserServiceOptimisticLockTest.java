@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import dev.booking.sports.identity.api.dto.request.UpdateUserProfileRequest;
+import dev.booking.sports.identity.api.dto.request.ReplaceUserRolesRequest;
 import dev.booking.sports.identity.config.FrontendProperties;
 import dev.booking.sports.identity.domain.model.User;
 import dev.booking.sports.identity.domain.repository.RoleRepository;
@@ -27,6 +30,7 @@ import dev.booking.sports.identity.infrastructure.security.ApplicationUserDetail
 import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 import dev.booking.sports.shared.outbox.OutboxService;
+import jakarta.persistence.EntityManager;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceOptimisticLockTest {
@@ -57,6 +61,9 @@ class UserServiceOptimisticLockTest {
 
     @InjectMocks
     private UserService userService;
+
+    @Mock
+    private EntityManager entityManager;
 
     @Test
     void updateMe_withStaleVersion_rejectsBeforeMutation() {
@@ -96,6 +103,21 @@ class UserServiceOptimisticLockTest {
         InOrder order = inOrder(userRepository, userDetailsService);
         order.verify(userRepository).saveAndFlush(user);
         order.verify(userDetailsService).evict(user.getEmail());
+    }
+
+    @Test
+    void replaceRolesWithStaleVersionRejectsBeforeLockingOrRevokingSessions() {
+        User user = userWithVersion(2L);
+        when(userRepository.findByIdWithRolesAndPermissions(USER_ID)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> userService.replaceRoles(UUID.randomUUID(), USER_ID,
+                new ReplaceUserRolesRequest(1L, Set.of("PROVIDER"))))
+                .isInstanceOf(ApiException.class)
+                .extracting(exception -> ((ApiException) exception).getErrorCode())
+                .isEqualTo(ConcurrencyErrorCode.OPTIMISTIC_LOCK_CONFLICT);
+
+        verifyNoInteractions(entityManager, roleRepository, userDetailsService, sessionService);
+        verify(userRepository, never()).saveAndFlush(user);
     }
 
     private User userWithVersion(Long version) {

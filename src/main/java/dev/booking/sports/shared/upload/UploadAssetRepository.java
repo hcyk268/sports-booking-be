@@ -3,6 +3,7 @@ package dev.booking.sports.shared.upload;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,9 +19,10 @@ public interface UploadAssetRepository extends JpaRepository<UploadAsset, UUID> 
 
     long countByOwnerIdAndStatusInAndExpiresAtAfter(UUID ownerId, List<UploadAsset.Status> states, Instant now);
 
-    @Query("select a.id from UploadAsset a where a.status = :deleteStatus "
-         + "or (a.status in :states and a.expiresAt < :now) order by a.expiresAt")
+    @Query("select a.id from UploadAsset a where a.storageProvider in :providers and (a.status = :deleteStatus "
+         + "or (a.status in :states and a.expiresAt < :now)) order by a.expiresAt")
     List<UUID> cleanupCandidates(@Param("deleteStatus") UploadAsset.Status deleteStatus,
                                 @Param("states") List<UploadAsset.Status> states,
-                                @Param("now") Instant now, Pageable pageable);
+                                @Param("now") Instant now,
+                                @Param("providers") Set<StorageProvider> providers, Pageable pageable);
 }

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.upload.UploadErrorCode;
 
-/** Read-only compatibility for V15 local data; all NEW uploads use R2. */
+/** Read-only compatibility for V15 local data; new uploads use object storage. */
 @Component
 public class LegacyImageReader {
     private final Path root;

@@ -73,11 +73,11 @@ $env:SERVER_PORT = '8081'
 | --- | --- |
 | Registration/OTP email delivery | `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, optional `SENDGRID_FROM_NAME`; RabbitMQ and outbox delivery must also work |
 | Email verification links | `APP_FRONTEND_BASE_URL` and optional frontend path settings |
-| Image upload | `R2_ENABLED=true` plus credentials, private bucket, CORS and lifecycle rules from the [Upload API](../api/modules/upload-api.md) |
+| Image upload | `R2_ENABLED=true` with R2 credentials, or `STORAGE_PROVIDER=s3` / `S3_ENABLED=true` with [S3 configuration](s3-upload.md); either requires a private bucket, CORS and lifecycle rules from the [Upload API](../api/modules/upload-api.md) |
 | New payment checkout | `SEPAY_ENABLED=true` plus merchant, secret and return URLs from the [Payment API](../api/modules/payment-api.md) |
 | Production profile | Explicit connections and JWT secrets from `application-prod.yml` and `application.yml` |
 
-R2 and SePay checkout are disabled by default. Email is asynchronous: HTTP success
+R2, S3 and SePay checkout are disabled by default. Email is asynchronous: HTTP success
 does not prove delivery. Configure SendGrid before testing activation and OTP flows.
 The `dev` JWT defaults are for local development only.
 
