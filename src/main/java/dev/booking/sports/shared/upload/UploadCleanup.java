@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 @Service @RequiredArgsConstructor
 public class UploadCleanup {
     private final UploadAssetRepository repository;
-    private final ObjectStorage storage;
+    private final ObjectStorageRegistry storages;
 
     @Transactional
     public void clean(UUID id) {
@@ -20,6 +20,7 @@ public class UploadCleanup {
         boolean expired = List.of(PENDING, READY).contains(asset.getStatus())
                 && !asset.getExpiresAt().isAfter(Instant.now());
         if (asset.getStatus() != DELETE_PENDING && !expired) return;
+        ObjectStorage storage = storages.forProvider(asset.getStorageProvider());
         storage.delete(asset.getStagingKey());
         storage.delete(asset.getStorageKey());
         asset.setStatus(DELETED);

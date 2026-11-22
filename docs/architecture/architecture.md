@@ -8,24 +8,24 @@ Sports Booking is a **Spring Boot modular monolith**. One application process se
 
 The implemented product scope includes identity and access management, court discovery and provider management, inbox/email notifications with SSE hints, shared image uploads, booking holds/queries/cancellation/completion, SePay checkout and IPN settlement, and completed-booking reviews. Court schedules describe operating hours, prices, and closures; booking creation checks occupancy before committing a hold. **Manual payment reconciliation, admin refund operations, and booking-aware public availability are not implemented yet.** An open schedule slot is not a reservation guarantee.
 
-The application uses Java 21, Spring Boot, Spring Data JPA, Spring Security, Flyway, PostgreSQL, Redis, RabbitMQ, SendGrid, and Cloudflare R2. R2 can be disabled by configuration; the upload initiation endpoint then returns an unavailable error.
+The application uses Java 21, Spring Boot, Spring Data JPA, Spring Security, Flyway, PostgreSQL, Redis, RabbitMQ, SendGrid, and Cloudflare R2 or Amazon S3. Both storage providers can be disabled by configuration; upload initiation then returns an unavailable error.
 
 ## 2. System context
 
 ```mermaid
 flowchart LR
     Client[Web or API client] -->|HTTPS /api/v1| App[Sports Booking application]
-    Client -->|Presigned PUT and GET| R2[(Private Cloudflare R2 bucket)]
+    Client -->|Presigned PUT and GET| Storage[(Private R2 or Amazon S3 bucket)]
     App -->|JPA and Flyway| PG[(PostgreSQL)]
     App -->|Sessions, tokens, OTP, locks, cache, notification Pub/Sub| Redis[(Redis)]
     App -->|Booking/payment events, notification and email delivery| MQ[(RabbitMQ)]
-    App -->|Verify, promote, delete, and sign objects| R2
+    App -->|Verify, promote, delete, and sign objects| Storage
     App -->|Send email| SG[SendGrid]
     Client -->|Submit signed checkout form| SePay[SePay]
     SePay -->|Authenticated IPN| App
 ```
 
-The diagram shows logical communication, not deployment topology. The API, outbox relay, upload cleanup task, and RabbitMQ listener run in the same application. The repository's [Docker Compose file](../../docker-compose.yml) starts PostgreSQL, Redis, and RabbitMQ for local development; it does not deploy the application, R2, or SendGrid.
+The diagram shows logical communication, not deployment topology. The API, outbox relay, upload cleanup task, and RabbitMQ listener run in the same application. The repository's [Docker Compose file](../../docker-compose.yml) starts PostgreSQL, Redis, and RabbitMQ for local development; it does not deploy the application, object storage, or SendGrid.
 
 ### Data ownership
 
@@ -34,7 +34,7 @@ The diagram shows logical communication, not deployment topology. The API, outbo
 | PostgreSQL | Users, roles, permissions, courts, schedules, prices, closures, bookings, booking slots/history, payments/attempts/receipts/inbox/refund records, reviews, notifications, image metadata, upload assets, outbox events, and processed email deliveries | System of record; schema changed through Flyway migrations |
 | Redis | Session state, refresh-token hashes, token versions and blacklist, verification tokens, OTPs, pending permission changes, rate limits, slot/idempotency locks, user-details cache, and best-effort notification Pub/Sub | Expiring operational state; required by current authentication flows |
 | RabbitMQ | Booking/payment exchanges and event queues, booking-notification and payment-cancellation queues, email delivery, retries, and dead-letter queues | Message transport; not the source of business data |
-| Cloudflare R2 | Staged and attached image bytes | Private object storage; PostgreSQL holds the corresponding metadata |
+| Cloudflare R2 / Amazon S3 | Staged and attached image bytes | Private object storage; PostgreSQL holds metadata and the provider for each asset |
 
 ## 3. Modules and dependency rules
 
@@ -101,33 +101,33 @@ endpoints are documented in [RabbitMQ operations](../guides/rabbitmq-operations.
 
 ## 6. Image upload and court gallery
 
-The shared upload subsystem issues presigned R2 URLs and owns `upload_assets` metadata. It separates browser-writable staging objects from verified permanent objects.
+The shared upload subsystem issues presigned R2/S3 URLs and owns `shared_upload_assets` metadata. It separates browser-writable staging objects from verified permanent objects. `ObjectStorageRegistry` selects the configured default for new uploads; each asset persists its provider for later completion, reads, and deletion. Both adapters share the S3-compatible operations with separate clients, presigners, buckets, and credentials.
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant API as Upload API
     participant DB as PostgreSQL
-    participant R2
+    participant Storage as R2 or Amazon S3
     participant Court as Court module
     Client->>API: Initiate upload (purpose, resource, metadata)
     API->>Court: UploadPolicy authorizes owner and capacity
     API->>DB: Create PENDING upload asset
     API-->>Client: Presigned PUT URL and required headers
-    Client->>R2: PUT image to staging key
+    Client->>Storage: PUT image to staging key
     Client->>API: Complete upload
-    API->>R2: Check metadata and read bytes
+    API->>Storage: Check metadata and read bytes
     API->>API: Validate image content and dimensions
-    API->>R2: Conditional copy to assets key
+    API->>Storage: Conditional copy to assets key
     API->>DB: Mark asset READY
     Client->>Court: Attach image using upload ID
     Court->>API: Claim asset in same DB transaction
     Court->>DB: Save gallery entry; asset ATTACHED
 ```
 
-The current purpose is `COURT_IMAGE`. A policy in `court` checks provider ownership and gallery capacity. `UploadService` locks the upload row when completing or claiming it, and the claim participates in the court transaction. A read URL is issued only after the consuming module authorizes access. Deleting an image releases the asset for cleanup. A scheduled task removes expired or deletion-pending assets when R2 is enabled. The R2 bucket must remain private and its staging lifecycle/CORS configuration must match the [Upload API requirements](../api/modules/upload-api.md).
+The current purpose is `COURT_IMAGE`. A policy in `court` checks provider ownership and gallery capacity. `UploadService` locks the upload row when completing or claiming it, and the claim participates in the court transaction. A read URL is issued only after the consuming module authorizes access. Deleting an image releases the asset for cleanup. A scheduled task removes expired or deletion-pending assets for enabled providers. Each bucket must remain private and its staging lifecycle/CORS configuration must match the [Upload API requirements](../api/modules/upload-api.md). See the [S3 setup guide](../guides/s3-upload.md).
 
-Object storage and PostgreSQL do not share a transaction. The upload lifecycle and cleanup task handle abandoned or expired objects; changes to this flow must account for partial failures between R2 and database operations. `LegacyImageReader` still supports older gallery records without an upload ID.
+Object storage and PostgreSQL do not share a transaction. The upload lifecycle and cleanup task handle abandoned or expired objects; changes to this flow must account for partial failures between storage and database operations. `LegacyImageReader` still supports older gallery records without an upload ID.
 
 ## 7. Payment, completion, reviews, and inbox notifications
 

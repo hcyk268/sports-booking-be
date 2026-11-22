@@ -1,6 +1,6 @@
 # Upload API
 
-Upload provides a shared direct-to-storage upload mechanism backed by Cloudflare R2 presigned URLs. It handles pre-authorized upload tickets, server-side content verification (dimensions, MIME, and image integrity), conditional object promotion, asset claiming by consuming modules, and temporary signed read access. Shared rules: [API conventions](../api-conventions.md). Errors: [error codes](../error-codes.md). Consuming modules: [Court API](./court-api.md).
+Upload provides a shared direct-to-storage upload mechanism backed by Cloudflare R2 or Amazon S3 presigned URLs. It handles pre-authorized upload tickets, server-side content verification (dimensions, MIME, and image integrity), conditional object promotion, asset claiming by consuming modules, and temporary signed read access. Shared rules: [API conventions](../api-conventions.md). Errors: [error codes](../error-codes.md). Consuming modules: [Court API](./court-api.md). S3 setup: [Amazon S3 upload](../../guides/s3-upload.md).
 
 Base path: `/api/v1/uploads`.
 
@@ -9,15 +9,15 @@ Base path: `/api/v1/uploads`.
 **Direct upload & verification**
 
 1. `POST /uploads` with `purpose`, `resourceId`, `fileName`, `contentType`, `sizeBytes` → backend verifies caller permissions via `UploadPolicy`, checks user concurrency limits, registers a `PENDING` asset (15m expiry), and issues a presigned PUT URL with required headers (5m expiry).
-2. Frontend sends direct HTTP `PUT <uploadUrl>` to Cloudflare R2 with raw binary file bytes and exact headers (no JWT bearer token sent to R2).
-3. `POST /uploads/{uploadId}/complete` (no request body) → backend queries R2 staging metadata, downloads bytes, validates PNG/JPEG structure and pixel dimensions via `ImageIO`, and performs conditional COPY to permanent storage key. Asset status transitions to `READY`.
+2. Frontend sends direct HTTP `PUT <uploadUrl>` to the selected storage provider with raw binary file bytes and exact headers (no JWT bearer token sent to storage).
+3. `POST /uploads/{uploadId}/complete` (no request body) → backend queries that asset's provider for staging metadata, downloads bytes, validates PNG/JPEG structure and pixel dimensions via `ImageIO`, and performs conditional COPY to permanent storage key. Asset status transitions to `READY`.
 4. Consuming module attaches asset (e.g. `POST /provider/courts/{courtId}/images` with `{ "uploadId": "..." }`) → backend claims asset under resource lock, transitioning status to `ATTACHED`.
 
 **Cancel & cleanup**
 
 1. `DELETE /uploads/{uploadId}` (204) before attachment → asset marked `DELETE_PENDING`.
-2. Scheduled background worker purges R2 objects for `DELETE_PENDING` assets every 5 minutes and marks them `DELETED`.
-3. R2 staging lifecycle rule auto-deletes orphaned staging objects after 1 day.
+2. Scheduled background worker purges objects for `DELETE_PENDING` and expired unattached assets every 5 minutes and marks them `DELETED`. It uses each asset's persisted provider and selects only enabled providers, so a disabled provider cannot block cleanup of another provider's files.
+3. Each bucket's staging lifecycle rule auto-deletes orphaned staging objects after 1 day.
 
 **Private asset read**
 
@@ -51,10 +51,14 @@ Base path: `/api/v1/uploads`.
   - Only the creating user can complete, claim, or cancel the upload.
   - An asset cannot be claimed by a different resource, module, or user.
 - **Infrastructure requirements:**
-  - Private Cloudflare R2 bucket with S3-compatible API credentials.
+  - `STORAGE_PROVIDER=r2` (default) or `s3` selects the provider for new uploads. Enable the selected provider with `R2_ENABLED=true` or `S3_ENABLED=true`; selecting a disabled provider while another provider is enabled fails startup.
+  - Both providers may be enabled together. Each upload persists `storageProvider`; completing, reading, and deleting always use that original provider, even after changing the default. Migration V26 assigns existing uploads to R2.
+  - Keep the original provider and bucket configuration enabled while those assets remain in use. Changing the default does not copy files between buckets. Disabling an asset's provider returns `503 UPLOAD_UNAVAILABLE` for its storage operations.
+  - Private Cloudflare R2 bucket with S3-compatible API credentials, or private Amazon S3 bucket with its region and AWS credentials/IAM role.
   - Bucket CORS must allow `PUT`, `GET`, `HEAD`, headers `content-type`, `x-amz-meta-upload-id`, and expose header `ETag`.
-  - R2 lifecycle rule must auto-delete `staging/` prefix after 1 day.
-  - If `R2_ENABLED=false`, initiation returns `503 UPLOAD_UNAVAILABLE`.
+  - Each bucket's lifecycle rule must auto-delete the `staging/` prefix after 1 day.
+  - If both providers are disabled (default), initiation returns `503 UPLOAD_UNAVAILABLE`.
+  - Cleanup interval: `app.storage.cleanup-interval` (defaults to legacy `app.storage.r2.cleanup-interval`, then `5m`).
 
 ## Special cases
 
@@ -67,7 +71,7 @@ Base path: `/api/v1/uploads`.
 | Cancel unattached upload (`PENDING` or `READY`) | **204 No Content**, marks `DELETE_PENDING`; background worker cleans up. |
 | Cancel already `ATTACHED` upload | **409 Conflict** (`UPLOAD_NOT_READY`). |
 | Concurrent unfinished uploads >= 20 | **429 Too Many Requests** (`UPLOAD_LIMIT`). |
-| Storage service disabled (`R2_ENABLED=false`) | **503 Service Unavailable** (`UPLOAD_UNAVAILABLE`). |
+| Both storage providers disabled, or an existing asset's provider disabled | **503 Service Unavailable** (`UPLOAD_UNAVAILABLE`). |
 
 ## Endpoints
 

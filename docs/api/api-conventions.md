@@ -51,7 +51,7 @@ Some operations (e.g. logout, image deletion, review deletion) return **HTTP 204
 - Messaging admin endpoints use bare JSON or empty status responses; see the [operations guide](../guides/rabbitmq-operations.md).
 - SePay IPN acknowledgement returns bare JSON `{"success": true}` after inbox commit.
 - Notification streaming returns `text/event-stream` with SSE frames.
-- Court image content may redirect to a signed R2 URL or return legacy image bytes.
+- Court image content may redirect to a signed R2/S3 URL or return legacy image bytes.
 
 These responses do not use `ApiResponse`. Their module documents define the contract.
 

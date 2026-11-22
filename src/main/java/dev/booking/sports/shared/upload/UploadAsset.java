@@ -18,6 +18,8 @@ public class UploadAsset extends BaseEntity {
     @Column(nullable = false) private UUID resourceId;
     @Column(nullable = false, length = 120) private String fileName;
     @Column(nullable = false, length = 40) private String contentType;
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
+    private StorageProvider storageProvider = StorageProvider.R2;
     @Column(nullable = false) private long sizeBytes;
     @Column(nullable = false, unique = true, length = 255) private String stagingKey;
     @Column(nullable = false, unique = true, length = 255) private String storageKey;

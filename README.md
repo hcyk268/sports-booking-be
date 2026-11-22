@@ -25,7 +25,7 @@ and events; background workers handle asynchronous delivery and cleanup.
 | Persistence | PostgreSQL, Spring Data JPA, Flyway |
 | Security & operational state | Spring Security, JWT, Redis |
 | Messaging | RabbitMQ, transactional outbox, retry queues and dead-letter queues |
-| Integrations | SePay, SendGrid, Cloudflare R2 |
+| Integrations | SePay, SendGrid, Cloudflare R2, Amazon S3 |
 | Testing | JUnit, Mockito, Testcontainers, JaCoCo |
 
 ## Run Locally
@@ -61,7 +61,7 @@ Docker Compose starts the supporting services; run the application separately wi
 Set environment variables through your shell or IDE; Compose reads `.env`
 automatically, while the backend does not. Keep backend connection settings aligned
 with Compose. See [.env.example](.env.example) and [local development](docs/guides/local-development.md)
-for configuration, optional SendGrid/R2/SePay setup, and troubleshooting.
+for configuration, optional SendGrid/R2/S3/SePay setup, and troubleshooting. Amazon S3 setup is documented in the [S3 upload guide](docs/guides/s3-upload.md).
 
 ## Testing & Demo Data
 

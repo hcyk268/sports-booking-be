@@ -10,6 +10,7 @@ an operation is implemented.
 | Task | Read |
 | --- | --- |
 | Start the backend | [Local development](guides/local-development.md) |
+| Configure Amazon S3 uploads | [S3 upload setup](guides/s3-upload.md) |
 | Integrate a client | [API overview](api/README.md), [conventions](api/api-conventions.md), and [errors](api/error-codes.md) |
 | Change business logic or dependencies | [System architecture](architecture/architecture.md) and [module boundaries](architecture/module-boundaries.md) |
 | Change payment persistence | [Payment database contract](payment-schema.md) and [Payment API](api/modules/payment-api.md) |

@@ -13,7 +13,7 @@ New courts created by providers start in status `DRAFT`. Publishing changes stat
 1. `POST /courts` (with `sportId`, `name`, `address`, `city`, optional `amenities`, `rules`) → court created with status `DRAFT`.
 2. `PUT /provider/courts/{id}/operating-hours` → configure weekly operating days, opening/closing hours, and slot duration.
 3. `PUT /provider/courts/{id}/price-rules` → configure hourly rates by day of week and time range.
-4. Upload images via Shared Upload API (`POST /uploads` → direct PUT to R2 → `POST /uploads/{uploadId}/complete`).
+4. Upload images via Shared Upload API (`POST /uploads` → direct PUT to R2 or S3 → `POST /uploads/{uploadId}/complete`).
 5. `POST /provider/courts/{id}/images` (with `uploadId`) → attach image; the first attached image automatically becomes the cover image.
 6. `POST /courts/{id}/publish` → status changes from `DRAFT` to `ACTIVE`; court becomes publicly discoverable.
 
@@ -85,7 +85,7 @@ New courts created by providers start in status `DRAFT`. Publishing changes stat
 | Advanced search without date | Returns matching courts with `match: null`. |
 | Day off or duration < slot size | Schedule returns `slots: []`. |
 | Partial closure intersection | Entire slot marked `closed: true`. |
-| Image content redirect | **302 Found** redirect to short-lived R2 presigned GET URL (or **200 OK** raw bytes for legacy local images). |
+| Image content redirect | **302 Found** redirect to short-lived R2/S3 presigned GET URL (or **200 OK** raw bytes for legacy local images). |
 | Private image access (`/access`) | **200 OK** with `{ "url": "<presigned URL>" }` (valid for 60s; `url: null` for legacy local images). |
 | Delete closure / delete image | **204 No Content**, no JSON envelope. |
 

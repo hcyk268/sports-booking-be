@@ -9,6 +9,9 @@ import java.util.UUID;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.test.annotation.DirtiesContext;
@@ -42,7 +45,8 @@ class UploadWorkflowIntegrationTest extends BaseIntegrationTest {
     @Autowired SportRepository sports;
     @Autowired CourtImageRepository images;
     @Autowired UploadAssetRepository assets;
-    @MockitoBean ObjectStorage storage;
+    @MockitoBean ObjectStorageRegistry storages;
+    private final ObjectStorage storage = mock(ObjectStorage.class);
     private UUID owner, courtId;
     private byte[] png;
     private UsernamePasswordAuthenticationToken auth(UUID actor, String role) {
@@ -51,6 +55,9 @@ class UploadWorkflowIntegrationTest extends BaseIntegrationTest {
                 AuthorityUtils.createAuthorityList("ROLE_" + role));
     }
     @BeforeEach void setup() throws Exception {
+        when(storage.provider()).thenReturn(StorageProvider.R2);
+        when(storages.forUploads()).thenReturn(storage);
+        when(storages.forProvider(any(StorageProvider.class))).thenReturn(storage);
         // This extra MockMvc/storage-mock context must never consume another test's email queue.
         listeners.stop();
         owner = UUID.randomUUID();
@@ -70,12 +77,16 @@ class UploadWorkflowIntegrationTest extends BaseIntegrationTest {
                 + "\",\"fileName\":\"court.png\",\"contentType\":\"image/png\",\"sizeBytes\":" + png.length + "}";
     }
     private UploadAsset begin() throws Exception {
+        var previousIds = assets.findAll().stream().map(UploadAsset::getId).collect(java.util.stream.Collectors.toSet());
         mvc.perform(post("/api/v1/uploads").with(authentication(auth(owner,"PROVIDER")))
                 .contentType(MediaType.APPLICATION_JSON).content(initiation())).andExpect(status().isCreated());
-        return assets.findAll().stream().filter(value -> value.getOwnerId().equals(owner)).findFirst().orElseThrow();
+        return assets.findAll().stream().filter(value -> value.getOwnerId().equals(owner) && !previousIds.contains(value.getId())).findFirst().orElseThrow();
     }
-    @Test void realDatabaseWorkflowVerifiesAttachesAndPreservesDraftPrivacy() throws Exception {
+    @ParameterizedTest @EnumSource(StorageProvider.class)
+    void realDatabaseWorkflowVerifiesAttachesAndPreservesDraftPrivacy(StorageProvider provider) throws Exception {
+        when(storage.provider()).thenReturn(provider);
         UploadAsset asset = begin();
+        assertThat(asset.getStorageProvider()).isEqualTo(provider);
         when(storage.head(asset.getStagingKey())).thenReturn(new ObjectStorage.Metadata(png.length,"image/png","etag",Map.of("upload-id",asset.getId().toString())));
         when(storage.readForValidation(asset.getStagingKey(),"etag",png.length)).thenReturn(png);
         when(storage.presignGet(anyString(),any())).thenReturn(URI.create("https://test.r2.cloudflarestorage.com/private-read"));
@@ -97,6 +108,32 @@ class UploadWorkflowIntegrationTest extends BaseIntegrationTest {
         mvc.perform(delete(gallery + "/" + image.getId()).with(authentication(auth(owner,"PROVIDER")))).andExpect(status().isNoContent());
         assertThat(assets.findById(asset.getId()).orElseThrow().getStatus()).isEqualTo(UploadAsset.Status.DELETE_PENDING);
         verify(storage,never()).delete(anyString());
+    }
+
+    @Test void cleanupCandidatesExcludeDisabledProviders() throws Exception {
+        UploadAsset r2 = begin();
+        when(storage.provider()).thenReturn(StorageProvider.S3);
+        UploadAsset s3 = begin();
+        r2.setExpiresAt(java.time.Instant.now().minusSeconds(60));
+        s3.setStatus(UploadAsset.Status.DELETE_PENDING);
+        assets.saveAndFlush(r2);
+        assets.saveAndFlush(s3);
+        var candidates = assets.cleanupCandidates(UploadAsset.Status.DELETE_PENDING,
+                java.util.List.of(UploadAsset.Status.PENDING, UploadAsset.Status.READY),
+                java.time.Instant.now(), Set.of(StorageProvider.S3), PageRequest.of(0, 50));
+        assertThat(candidates).contains(s3.getId()).doesNotContain(r2.getId());
+    }
+
+    @Test void legacyRowsWithoutProviderDefaultToR2() throws Exception {
+        UploadAsset asset = begin();
+        UUID legacyId = UUID.randomUUID();
+        jdbc.update("""
+                insert into shared_upload_assets(id, owner_id, purpose, resource_id, file_name, content_type,
+                    size_bytes, staging_key, storage_key, status, expires_at)
+                select ?, owner_id, purpose, resource_id, file_name, content_type, size_bytes,
+                    ?, ?, status, expires_at from shared_upload_assets where id = ?
+                """, legacyId, "staging/" + legacyId, "assets/" + legacyId + ".png", asset.getId());
+        assertThat(assets.findById(legacyId).orElseThrow().getStorageProvider()).isEqualTo(StorageProvider.R2);
     }
     @Test void anonymousCustomerAndOtherProviderCannotRequestUploadForThisCourt() throws Exception {
         mvc.perform(post("/api/v1/uploads").contentType(MediaType.APPLICATION_JSON).content(initiation())).andExpect(status().isUnauthorized());

@@ -18,14 +18,14 @@ import static dev.booking.sports.shared.upload.UploadAsset.Status.*;
 @Service
 public class UploadService {
     private final UploadAssetRepository repository;
-    private final ObjectStorage storage;
+    private final ObjectStorageRegistry storages;
     private final ImageVerifier verifier;
     private final Map<String, UploadPolicy> policies;
 
-    public UploadService(UploadAssetRepository repository, ObjectStorage storage,
+    public UploadService(UploadAssetRepository repository, ObjectStorageRegistry storages,
                          ImageVerifier verifier, List<UploadPolicy> policies) {
         this.repository = repository;
-        this.storage = storage;
+        this.storages = storages;
         this.verifier = verifier;
         this.policies = policies.stream().collect(Collectors.toUnmodifiableMap(UploadPolicy::purpose, Function.identity()));
     }
@@ -44,7 +44,9 @@ public class UploadService {
         Instant now = Instant.now();
         if (repository.countByOwnerIdAndStatusInAndExpiresAtAfter(ownerId, List.of(PENDING, READY), now) >= 20)
             throw new ApiException(UploadErrorCode.UPLOAD_LIMIT);
+        ObjectStorage storage = storages.forUploads();
         UploadAsset asset = new UploadAsset();
+        asset.setStorageProvider(storage.provider());
         asset.setOwnerId(ownerId);
         asset.setPurpose(policy.purpose());
         asset.setResourceId(request.resourceId());
@@ -69,6 +71,7 @@ public class UploadService {
         requireUnexpired(asset);
         if (asset.getStatus() == READY) return VerifiedUpload.from(asset);
         if (asset.getStatus() != PENDING) throw new ApiException(UploadErrorCode.UPLOAD_NOT_READY);
+        ObjectStorage storage = storages.forProvider(asset.getStorageProvider());
         var metadata = storage.head(asset.getStagingKey());
         if (metadata.sizeBytes() != asset.getSizeBytes()
                 || !asset.getContentType().equals(metadata.contentType())
@@ -102,7 +105,7 @@ public class UploadService {
     public URI readUrl(UUID uploadId) {
         UploadAsset asset = repository.findById(uploadId).orElseThrow(() -> new ApiException(UploadErrorCode.UPLOAD_NOT_FOUND));
         if (asset.getStatus() != ATTACHED) throw new ApiException(UploadErrorCode.UPLOAD_NOT_FOUND);
-        return storage.presignGet(asset.getStorageKey(), Duration.ofSeconds(60));
+        return storages.forProvider(asset.getStorageProvider()).presignGet(asset.getStorageKey(), Duration.ofSeconds(60));
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
