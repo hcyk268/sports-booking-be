@@ -26,6 +26,8 @@ import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 import dev.booking.sports.shared.outbox.OutboxService;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -41,6 +43,7 @@ public class RolePermissionChangeService {
 	private final OutboxService outboxService;
 	private final AuthSessionService sessionService;
 	private final ApplicationUserDetailsService userDetailsService;
+	private final EntityManager entityManager;
 
 	@Transactional
 	public RolePermissionChangeRequestResponse requestChange(
@@ -85,6 +88,8 @@ public class RolePermissionChangeService {
 		policy.assertRolePermissionsChangeAllowed(normalizedRoleCode, permissionCodes);
 		Role role = requireRoleWithPermissions(normalizedRoleCode);
 		assertExpectedVersion(role, request.version());
+		// Lock only this role and increment now, before building the response DTO.
+		entityManager.lock(role, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
 
 		otpService.verify(OtpPurpose.ROLE_PERMISSION_CHANGE, actorUserId, normalizedRoleCode, request.otp());
 
@@ -113,7 +118,7 @@ public class RolePermissionChangeService {
 	}
 
 	private Role requireRoleWithPermissions(String roleCode) {
-		return roleRepository.findByCodeWithPermissionsForMutation(roleCode)
+		return roleRepository.findByCodeWithPermissions(roleCode)
 				.orElseThrow(() -> new ApiException(AuthErrorCode.ROLE_NOT_FOUND));
 	}
 

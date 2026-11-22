@@ -2,6 +2,8 @@ package dev.booking.sports.identity.application;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -15,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import dev.booking.sports.identity.api.dto.request.ReplaceRolePermissionsRequest;
+import dev.booking.sports.identity.api.dto.request.ApplyRolePermissionsRequest;
 import dev.booking.sports.identity.domain.model.Permission;
 import dev.booking.sports.identity.domain.model.Role;
 import dev.booking.sports.identity.domain.repository.PermissionRepository;
@@ -25,6 +28,7 @@ import dev.booking.sports.identity.infrastructure.security.ApplicationUserDetail
 import dev.booking.sports.shared.exception.ApiException;
 import dev.booking.sports.shared.exception.ConcurrencyErrorCode;
 import dev.booking.sports.shared.outbox.OutboxService;
+import jakarta.persistence.EntityManager;
 
 @ExtendWith(MockitoExtension.class)
 class RolePermissionChangeServiceOptimisticLockTest {
@@ -62,6 +66,9 @@ class RolePermissionChangeServiceOptimisticLockTest {
     @InjectMocks
     private RolePermissionChangeService service;
 
+    @Mock
+    private EntityManager entityManager;
+
     @Test
     void requestChange_withStaleRoleVersion_doesNotCreatePendingChange() {
         Set<String> permissionCodes = Set.of("USER_READ");
@@ -88,5 +95,25 @@ class RolePermissionChangeServiceOptimisticLockTest {
                 .isEqualTo(ConcurrencyErrorCode.OPTIMISTIC_LOCK_CONFLICT);
 
 		verifyNoInteractions(pendingStore);
+    }
+
+    @Test
+    void applyChangeWithStaleRoleVersionDoesNotConsumeOtpOrReplacePermissions() {
+        Set<String> requested = Set.of("USER_READ");
+        Role role = new Role();
+        role.setCode("PROVIDER");
+        role.setVersion(4L);
+        when(policy.normalizePermissionCodes(requested)).thenReturn(requested);
+        when(pendingStore.read(ACTOR_ID, "PROVIDER")).thenReturn(Optional.of(requested));
+        when(roleRepository.findByCodeWithPermissions("PROVIDER")).thenReturn(Optional.of(role));
+
+        assertThatThrownBy(() -> service.applyChange(ACTOR_ID, "PROVIDER",
+                new ApplyRolePermissionsRequest(3L, requested, "123456")))
+                .isInstanceOf(ApiException.class)
+                .extracting(exception -> ((ApiException) exception).getErrorCode())
+                .isEqualTo(ConcurrencyErrorCode.OPTIMISTIC_LOCK_CONFLICT);
+
+        verifyNoInteractions(otpService, permissionRepository, sessionService, entityManager);
+        verify(roleRepository, never()).saveAndFlush(role);
     }
 }

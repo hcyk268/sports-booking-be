@@ -60,6 +60,8 @@ See [API conventions](../api/api-conventions.md) for URL versioning, pagination,
 
 Identity issues signed access and refresh JWTs. Access tokens carry user ID, session identifier, token version, roles, and permissions. The API does not trust the JWT signature alone: the request filter consults Redis so logout and account-wide revocation can take effect before access-token expiry. Refresh tokens are associated with a Redis-backed device session and rotated; replay of an old refresh token revokes all sessions for that user. User accounts, roles, and permissions remain in PostgreSQL. See the [Identity API](../api/modules/identity-api.md) for user-facing flows.
 
+Replacing a user's roles or a role's permissions loads the relationships without a query lock, checks the client's expected version, then applies `PESSIMISTIC_FORCE_INCREMENT` only to the managed `User` or `Role`. This holds the root row lock until transaction completion and advances its version before constructing the response. Fetched permissions and join entities do not need version fields. Stale versions and conflicting updates still use the `409 OPTIMISTIC_LOCK_CONFLICT` contract. A failed mutation rolls back the version increment with the relationship changes.
+
 ## 5. Asynchronous email delivery
 
 Identity writes email intents through the shared `OutboxService`. When called inside a business transaction, the business changes and outbox row commit together in PostgreSQL. Email dispatch runs independently of the HTTP response, so a successful API response means the work was accepted, not that the recipient has received a message.
