@@ -62,6 +62,8 @@ Identity issues signed access and refresh JWTs. Access tokens carry user ID, ses
 
 Replacing a user's roles or a role's permissions loads the relationships without a query lock, checks the client's expected version, then applies `PESSIMISTIC_FORCE_INCREMENT` only to the managed `User` or `Role`. This holds the root row lock until transaction completion and advances its version before constructing the response. Fetched permissions and join entities do not need version fields. Stale versions and conflicting updates still use the `409 OPTIMISTIC_LOCK_CONFLICT` contract. A failed mutation rolls back the version increment with the relationship changes.
 
+Association replacement reconciles links by role or permission ID. Retained links keep their managed instance and original `assigned_at`; orphan removal deletes only removed links, and only new links are created. Clearing and rebuilding these collections would introduce duplicate composite IDs or overwrite existing assignment metadata during Hibernate merge.
+
 ## 5. Asynchronous email delivery
 
 Identity writes email intents through the shared `OutboxService`. When called inside a business transaction, the business changes and outbox row commit together in PostgreSQL. Email dispatch runs independently of the HTTP response, so a successful API response means the work was accepted, not that the recipient has received a message.

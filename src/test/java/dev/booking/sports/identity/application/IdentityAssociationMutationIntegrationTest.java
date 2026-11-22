@@ -11,6 +11,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.annotation.DirtiesContext;
@@ -54,6 +56,7 @@ class IdentityAssociationMutationIntegrationTest extends BaseIntegrationTest {
     private UUID userId, roleId, otherRoleId;
     private String roleCode, otherRoleCode;
     private long userVersion, roleVersion, otherRoleVersion;
+    private java.time.Instant roleAssignedAt, userAssignedAt;
     private TransactionTemplate transaction;
 
     @BeforeEach
@@ -68,11 +71,13 @@ class IdentityAssociationMutationIntegrationTest extends BaseIntegrationTest {
             otherRoleCode = other.getCode();
             roleVersion = role.getVersion();
             otherRoleVersion = other.getVersion();
+            roleAssignedAt = role.getRolePermissions().iterator().next().getAssignedAt();
             User user = User.register(UUID.randomUUID() + "@example.com", "unused-test-hash", "Mutation test", null);
             user.assignRole(role);
             user = userRepository.saveAndFlush(user);
             userId = user.getId();
             userVersion = user.getVersion();
+            userAssignedAt = user.getUserRoles().iterator().next().getAssignedAt();
         });
     }
 
@@ -183,6 +188,48 @@ class IdentityAssociationMutationIntegrationTest extends BaseIntegrationTest {
         });
         verify(pendingStore, never()).delete(actorId, roleCode);
         verifyNoInteractions(sessions);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void replacingPermissionsCanKeepExistingPermissions(boolean addPermission) {
+        Set<String> requested = addPermission ? Set.of("USER_READ", "ROLE_READ") : Set.of("USER_READ");
+        when(pendingStore.read(actorId, roleCode)).thenReturn(Optional.of(requested));
+
+        var response = rolePermissions.applyChange(actorId, roleCode,
+                new ApplyRolePermissionsRequest(roleVersion, requested, "123456"));
+
+        assertThat(response.permissionCodes()).isEqualTo(requested);
+        transaction.executeWithoutResult(status -> {
+            Role persisted = roleRepository.findByCodeWithPermissions(roleCode).orElseThrow();
+            assertThat(persisted.permissionCodes()).isEqualTo(requested);
+            assertThat(persisted.getVersion()).isGreaterThan(roleVersion).isEqualTo(response.version());
+            assertThat(persisted.getRolePermissions().stream()
+                    .filter(link -> link.getPermission().getCode().equals("USER_READ"))
+                    .findFirst().orElseThrow().getAssignedAt())
+                    .isCloseTo(roleAssignedAt, within(1, java.time.temporal.ChronoUnit.MICROS));
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void replacingRolesCanKeepExistingRoles(boolean addRole) {
+        Set<String> requested = addRole ? Set.of(roleCode, otherRoleCode) : Set.of(roleCode);
+
+        var response = users.replaceRoles(actorId, userId, new ReplaceUserRolesRequest(userVersion, requested));
+
+        assertThat(response.roles()).isEqualTo(requested);
+        transaction.executeWithoutResult(status -> {
+            User persisted = userRepository.findByIdWithRolesAndPermissions(userId).orElseThrow();
+            assertThat(persisted.roleCodes()).isEqualTo(requested);
+            assertThat(persisted.getVersion()).isGreaterThan(userVersion).isEqualTo(response.version());
+            assertThat(persisted.getUserRoles().stream()
+                    .filter(link -> link.getRole().getId().equals(roleId))
+                    .findFirst().orElseThrow().getAssignedAt())
+                    .isCloseTo(userAssignedAt, within(1, java.time.temporal.ChronoUnit.MICROS));
+            assertThat(roleRepository.findById(roleId).orElseThrow().getVersion()).isEqualTo(roleVersion);
+            assertThat(roleRepository.findById(otherRoleId).orElseThrow().getVersion()).isEqualTo(otherRoleVersion);
+        });
     }
 
     private Role createRole(String permissionCode) {

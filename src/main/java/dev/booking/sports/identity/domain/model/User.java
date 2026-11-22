@@ -3,6 +3,7 @@ package dev.booking.sports.identity.domain.model;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import dev.booking.sports.identity.domain.enums.UserStatus;
@@ -116,8 +117,11 @@ public class User extends BaseEntity {
 	}
 
 	public void replaceRoles(Set<Role> roles) {
-		userRoles.clear();
-		roles.forEach(this::assignRole);
+		Set<UUID> requestedIds = roles.stream().map(Role::getId).collect(Collectors.toSet());
+		userRoles.removeIf(link -> !requestedIds.contains(link.getRole().getId()));
+		Set<UUID> retainedIds = userRoles.stream()
+				.map(link -> link.getRole().getId()).collect(Collectors.toSet());
+		roles.stream().filter(role -> !retainedIds.contains(role.getId())).forEach(this::assignRole);
 	}
 
 	public void lock() {
