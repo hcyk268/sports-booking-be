@@ -30,7 +30,9 @@ import jakarta.validation.constraints.Size;
 @RequestMapping("/api/v1/payments/refunds")
 @PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Payment Refund")
+@lombok.RequiredArgsConstructor
 public class PaymentRefundController {
+    private final dev.booking.sports.payment.application.PaymentRefundService refunds;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -40,7 +42,7 @@ public class PaymentRefundController {
             @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 100) String idempotencyKey,
             @Valid @RequestBody CreateRefundRequest request,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(refunds.create(adminId, idempotencyKey, request), servletRequest.getRequestURI());
     }
 
     @GetMapping
@@ -55,7 +57,7 @@ public class PaymentRefundController {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(refunds.list(paymentId, paymentTransactionId, status, from, to, page, size), servletRequest.getRequestURI());
     }
 
     @GetMapping("/{id}")
@@ -64,7 +66,7 @@ public class PaymentRefundController {
             @AuthenticationPrincipal(expression = "userId()") UUID adminId,
             @PathVariable UUID id,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(refunds.get(id), servletRequest.getRequestURI());
     }
 
     @PostMapping("/{id}/processing")
@@ -74,7 +76,7 @@ public class PaymentRefundController {
             @PathVariable UUID id,
             @Valid @RequestBody RefundVersionRequest request,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(refunds.start(id, adminId, request.version()), servletRequest.getRequestURI());
     }
 
     @PostMapping("/{id}/completion")
@@ -85,7 +87,7 @@ public class PaymentRefundController {
             @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 100) String idempotencyKey,
             @Valid @RequestBody CompleteRefundRequest request,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(refunds.complete(id, adminId, idempotencyKey, request), servletRequest.getRequestURI());
     }
 
     @PostMapping("/{id}/rejection")
@@ -95,7 +97,7 @@ public class PaymentRefundController {
             @PathVariable UUID id,
             @Valid @RequestBody RefundDecisionRequest request,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(refunds.decide(id, adminId, request, true), servletRequest.getRequestURI());
     }
 
     @PostMapping("/{id}/cancellation")
@@ -105,6 +107,6 @@ public class PaymentRefundController {
             @PathVariable UUID id,
             @Valid @RequestBody RefundDecisionRequest request,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(refunds.decide(id, adminId, request, false), servletRequest.getRequestURI());
     }
 }

@@ -23,4 +23,11 @@ public record PaymentRefundResponse(
         Long version,
         Instant createdAt,
         Instant updatedAt) {
+    public static PaymentRefundResponse from(dev.booking.sports.payment.domain.model.PaymentRefund refund) {
+        return new PaymentRefundResponse(refund.getId(), refund.getPaymentId(), refund.getPaymentTransactionId(),
+                refund.getAmount(), refund.getCurrency(), refund.getStatus(), refund.getReason(),
+                refund.getRequestedBy(), refund.getProcessedBy(), refund.getProcessingStartedAt(),
+                refund.getCompletedAt(), refund.getRefundReference(), refund.getEvidenceAssetId(),
+                refund.getAdminNote(), refund.getVersion(), refund.getCreatedAt(), refund.getUpdatedAt());
+    }
 }

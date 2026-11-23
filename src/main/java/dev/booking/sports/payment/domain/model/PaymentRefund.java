@@ -64,6 +64,17 @@ public class PaymentRefund extends BaseEntity {
     @Column(name = "admin_note", length = 2000)
     private String adminNote;
 
+    @Column(name = "completion_key", length = 100)
+    private String completionKey;
+
+    @Column(name = "completion_hash", length = 64)
+    private String completionHash;
+
+    public void recordCompletionRequest(String key, String hash) {
+        completionKey = PaymentValidation.text(key, "completion key", 100);
+        completionHash = PaymentValidation.hash(hash);
+    }
+
     @Version
     @Column(nullable = false)
     private Long version;

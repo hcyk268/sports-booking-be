@@ -33,6 +33,14 @@ public class PaymentLockManager {
 
     private final StringRedisTemplate redis;
 
+    public LockHandle acquireReconciliation(UUID paymentId) {
+        String key = "payment:reconciliation:" + Objects.requireNonNull(paymentId);
+        String token = UUID.randomUUID().toString();
+        if (!Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(key, token, LOCK_TTL)))
+            throw new ApiException(PaymentErrorCode.PAYMENT_RECONCILIATION_IN_PROGRESS);
+        return new LockHandle(key, token);
+    }
+
     public LockHandle acquireIdempotency(UUID customerId, String idempotencyKey) {
         Objects.requireNonNull(customerId, "customerId must not be null");
         if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 100) {

@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import dev.booking.sports.payment.application.PaymentService;
+import dev.booking.sports.payment.application.PaymentReconciliationService;
 import org.springframework.security.core.GrantedAuthority;
 import lombok.RequiredArgsConstructor;
 import dev.booking.sports.payment.application.PaymentQueryService;
@@ -37,6 +38,7 @@ public class PaymentController {
 
     private final PaymentQueryService queryService;
     private final PaymentService paymentService;
+    private final PaymentReconciliationService reconciliationService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER', 'ADMIN')")
@@ -86,7 +88,7 @@ public class PaymentController {
             @AuthenticationPrincipal(expression = "userId()") UUID adminId,
             @PathVariable UUID id,
             HttpServletRequest servletRequest) {
-        return null;
+        return ApiResponse.success(reconciliationService.reconcile(id), servletRequest.getRequestURI());
     }
 
     private static Set<String> authorities(Authentication authentication) {

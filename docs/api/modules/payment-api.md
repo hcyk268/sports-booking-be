@@ -5,10 +5,9 @@ Shared rules: [API conventions](../api-conventions.md). Persistence: [payment da
 
 ## Implementation status
 
-Checkout creation/resume, scoped reads, authenticated IPN reception, settlement and
-pending-payment cancellation are implemented. Reconciliation and seven refund
-handlers remain placeholders returning `null`; their declared schemas are not
-usable operations. SePay query/cancel and manual refund handling are pending.
+Checkout creation/resume, scoped reads, authenticated IPN reception, settlement,
+pending-payment cancellation, admin reconciliation and all seven manual refund handlers are implemented.
+Refund endpoints record an administrator's manual transfer; they do not initiate a bank transfer.
 
 ## Routes
 
@@ -19,15 +18,15 @@ usable operations. SePay query/cancel and manual refund handling are pending.
 | GET | `/api/v1/payments` | CUSTOMER / PROVIDER / ADMIN | Page of `PaymentResponse` | Implemented |
 | GET | `/api/v1/payments/{id}` | CUSTOMER / PROVIDER / ADMIN | `PaymentResponse` | Implemented |
 | POST | `/api/v1/payments/{id}/checkout` | CUSTOMER | `PaymentCheckoutResponse` | Implemented |
-| POST | `/api/v1/payments/{id}/reconciliation` | ADMIN | `PaymentReconciliationResponse` (202) | Placeholder |
+| POST | `/api/v1/payments/{id}/reconciliation` | ADMIN | `PaymentReconciliationResponse` (202) | Implemented |
 | POST | `/api/v1/payments/sepay/ipn` | SePay secret authentication | Bare `SePayIpnResponse` | Implemented |
-| POST | `/api/v1/payments/refunds` | ADMIN | `PaymentRefundResponse` (201) | Placeholder |
-| GET | `/api/v1/payments/refunds` | ADMIN | Page of `PaymentRefundResponse` | Placeholder |
-| GET | `/api/v1/payments/refunds/{id}` | ADMIN | `PaymentRefundResponse` | Placeholder |
-| POST | `/api/v1/payments/refunds/{id}/processing` | ADMIN | `PaymentRefundResponse` | Placeholder |
-| POST | `/api/v1/payments/refunds/{id}/completion` | ADMIN | `PaymentRefundResponse` | Placeholder |
-| POST | `/api/v1/payments/refunds/{id}/rejection` | ADMIN | `PaymentRefundResponse` | Placeholder |
-| POST | `/api/v1/payments/refunds/{id}/cancellation` | ADMIN | `PaymentRefundResponse` | Placeholder |
+| POST | `/api/v1/payments/refunds` | ADMIN | `PaymentRefundResponse` (201) | Implemented |
+| GET | `/api/v1/payments/refunds` | ADMIN | Page of `PaymentRefundResponse` | Implemented |
+| GET | `/api/v1/payments/refunds/{id}` | ADMIN | `PaymentRefundResponse` | Implemented |
+| POST | `/api/v1/payments/refunds/{id}/processing` | ADMIN | `PaymentRefundResponse` | Implemented |
+| POST | `/api/v1/payments/refunds/{id}/completion` | ADMIN | `PaymentRefundResponse` | Implemented |
+| POST | `/api/v1/payments/refunds/{id}/rejection` | ADMIN | `PaymentRefundResponse` | Implemented |
+| POST | `/api/v1/payments/refunds/{id}/cancellation` | ADMIN | `PaymentRefundResponse` | Implemented |
 
 ## Create payment behavior
 
@@ -178,7 +177,8 @@ type as routing key and the persisted event ID in the envelope. Consumers bind t
 queues to this exchange and must deduplicate event IDs. Outbox delivery is at least
 once and requires publisher confirms and successful routing. Missing routes/nacks/
 timeouts keep delivery in the outbox retry/failure flow, not marked published.
-SePay query/cancel reconciliation and manual refund handling remain separate work.
+Reconciliation queries SePay and persists financial observations for the same inbox worker.
+Gateway order cancellation is not performed by reconciliation.
 
 ## Payment state after booking cancellation
 
@@ -203,3 +203,51 @@ Missing the required `Idempotency-Key` header on payment creation returns
 See the [error catalog](../error-codes.md) for payment state, deadline, idempotency,
 gateway and validation errors. Placeholder handlers do not implement their declared
 business errors.
+
+## Admin reconciliation
+
+POST `/api/v1/payments/{id}/reconciliation` queries the newest attempt using its stored
+environment, merchant and invoice. The configured credentials must match that attempt.
+The network call has a 10-second timeout and runs without database row locks.
+A per-payment lease rejects concurrent calls with `PAYMENT_RECONCILIATION_IN_PROGRESS`.
+
+202 means the lookup was recorded and any payment transactions were durably queued.
+It does **not** mean the payment succeeded. Read the payment again after the inbox worker runs.
+Pending, missing and cancelled gateway orders cannot settle a booking. Missing orders and
+failed lookups preserve the existing checkout state. Ambiguous verified gateway states
+pause active checkout as UNKNOWN.
+Captured orders without approved transactions require review. A failed gateway call returns
+502/503, records the failure and never fabricates success. An UNKNOWN attempt is not reopened
+by a pending result alone. A cancelled booking with collected funds stays cancelled and the
+receipt requires review/refund.
+
+Only the newest attempt is queried by this endpoint. Older attempts still accept authenticated
+IPNs; investigating a missing IPN for an older invoice requires operational follow-up.
+`nextReconcileAt` records the suggested follow-up time; automatic scheduled gateway polling
+is not included. The existing inbox worker retries processing of already-received observations.
+
+Source: [SePay order detail API](https://developer.sepay.vn/vi/cong-thanh-toan/API/don-hang/chi-tiet-don-hang).
+The lookup uses `/v1/order/detail/{order_invoice_number}`, not the gateway order UUID.
+
+## Manual refunds
+
+All seven refund routes require ADMIN. A refund must reference a matched, approved PAYMENT
+receipt in VND. It may be a late/extra collection requiring review; a cancelled booking does
+not make the collected money unrefundable.
+
+- Creation requires `Idempotency-Key`; same key/body returns the existing refund, changed body returns 409.
+- REQUESTED, PROCESSING and COMPLETED amounts reserve the receipt's refund budget.
+  Payment/receipt locks serialize reservations, including concurrent administrators.
+- REQUESTED can enter PROCESSING, REJECTED or CANCELLED. PROCESSING can enter COMPLETED.
+  Reject/cancel releases the reservation; completed transfers cannot be cancelled through these routes.
+- Mutations require the current `version`; stale versions return 409.
+- Completion also requires `Idempotency-Key` and `refundReference`. Retry with the original
+  body/key after a lost response returns the recorded completion without a second transfer record.
+- Optional evidence uses shared uploads with purpose `REFUND_EVIDENCE`, resourceId=refund ID,
+  PNG/JPEG up to 5 MiB. Completion accepts only the acting admin's READY, unexpired upload for
+  that exact refund. Claim and completion commit together. Evidence upload IDs are stored in
+  admin refund details; these routes do not expose a public evidence URL.
+- List filters: paymentId, paymentTransactionId, status, from inclusive, to exclusive.
+  Page starts at 0; size is 1–100; order is createdAt then ID descending.
+- History retains the actor, transitions and rejection/cancellation reasons. Ordinary customer/
+  provider payment reads keep the existing refund summary and do not expose admin notes.
