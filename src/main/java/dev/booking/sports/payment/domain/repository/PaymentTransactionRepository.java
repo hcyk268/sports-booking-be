@@ -16,4 +16,7 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
 
     Optional<PaymentTransaction> findByProviderAndEnvironmentAndMerchantIdAndProviderTransactionId(
             PaymentProvider provider, PaymentEnvironment environment, String merchantId, String transactionId);
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select t from PaymentTransaction t where t.id = :id")
+    Optional<PaymentTransaction> lockById(UUID id);
 }

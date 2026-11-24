@@ -39,7 +39,19 @@ public class SePayIpnService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void receive(String secret, String payload) {
         authenticate(secret);
-        SePayIpnRequest request = parse(payload);
+        accept(parse(payload), payload, "");
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void receiveReconciliation(SePayIpnRequest request) {
+        if (request == null || !validator.validate(request).isEmpty())
+            throw new ApiException(PaymentErrorCode.SEPAY_GATEWAY_REQUEST_FAILED);
+        String payload = mapper.writeValueAsString(request);
+        // Query responses omit optional IPN fields; they have an independent deduplication namespace.
+        accept(request, payload, "query:");
+    }
+
+    private void accept(SePayIpnRequest request, String payload, String source) {
         var order = request.order();
         var transaction = request.transaction();
         Instant occurredAt;
@@ -50,7 +62,7 @@ public class SePayIpnService {
             occurredAt = null;
             invalidTransactionTime = true;
         }
-        String key = hash(mapper.writeValueAsString(List.of(request.notificationType(), transaction.id(),
+        String key = source + hash(mapper.writeValueAsString(List.of(request.notificationType(), transaction.id(),
                 order.orderStatus(), transaction.transactionStatus())));
         String payloadHash = hash(mapper.writeValueAsString(Arrays.asList(
                 order.id(), order.orderId(), order.orderStatus(), order.orderCurrency(),
@@ -74,7 +86,9 @@ public class SePayIpnService {
             repository.save(inbox);
             return;
         }
-        if (!existing.get().hasPayloadHash(payloadHash)) {
+        if (!existing.get().hasPayloadHash(payloadHash)
+                && repository.findByProviderAndEnvironmentAndMerchantIdAndDeduplicationKey(
+                    PaymentProvider.SEPAY, properties.environment(), properties.merchantId(), key + ":" + payloadHash).isEmpty()) {
             var conflict = notification(request, key + ":" + payloadHash, payloadHash, payload, occurredAt);
             repository.save(PaymentWebhookInbox.receiveForReview(conflict, now,
                     "Conflicting financial content for notification " + key));

@@ -78,8 +78,8 @@ public class PaymentInboxProcessor {
 
         if ("TRANSACTION_VOID".equals(request.notificationType())) {
             boolean applied = receipt.getResolutionStatus() == PaymentResolutionStatus.APPLIED;
-            receipt.recordProviderStatus(facts.status());
             pauseVoidedCheckout(inbox, receipt);
+            receipt.recordProviderStatus(facts.status());
             review(inbox, receipt, applied ? "VOID_AFTER_SETTLEMENT" : "VOID_REQUIRES_RECONCILIATION");
             return;
         }
@@ -245,7 +245,8 @@ public class PaymentInboxProcessor {
     private boolean sameFacts(PaymentTransaction receipt, PaymentTransaction.Receipt facts) {
         return Objects.equals(receipt.getInvoiceNumber(), facts.invoiceNumber())
                 && Objects.equals(receipt.getProviderOrderId(), facts.orderId())
-                && Objects.equals(receipt.getProviderTransactionReference(), facts.reference())
+                && (receipt.getProviderTransactionReference() == null || facts.reference() == null
+                    || Objects.equals(receipt.getProviderTransactionReference(), facts.reference()))
                 && Objects.equals(receipt.getTransactionType(), facts.type())
                 && Objects.equals(receipt.getPaymentMethod(), facts.method())
                 && receipt.getAmount().compareTo(facts.amount()) == 0

@@ -34,7 +34,7 @@ class PaymentControllerTest {
                 paymentId, attemptId, PaymentStatus.PENDING, new BigDecimal("300000"), "VND", Instant.now().plusSeconds(600),
                 new PaymentCheckoutResponse.CheckoutForm("https://pay-sandbox.sepay.vn/v1/checkout/init", "POST",
                         List.of(new PaymentCheckoutResponse.Field("signature", "original-signature")))));
-        var mvc = MockMvcBuilders.standaloneSetup(new PaymentController(queryService, paymentService))
+        var mvc = MockMvcBuilders.standaloneSetup(new PaymentController(queryService, paymentService, mock(dev.booking.sports.payment.application.PaymentReconciliationService.class)))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         var context = SecurityContextHolder.createEmptyContext();
