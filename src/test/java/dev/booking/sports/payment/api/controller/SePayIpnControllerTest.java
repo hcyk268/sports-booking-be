@@ -63,6 +63,21 @@ class SePayIpnControllerTest {
     }
 
     @Test
+    void acceptsOnboardingObjectUserAgentAndQueuesForReviewWithoutProcessingPayment() throws Exception {
+        String payload;
+        try (var input = getClass().getResourceAsStream("/sepay/onboarding-ipn.json")) {
+            payload = new String(java.util.Objects.requireNonNull(input).readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        }
+        mvc.perform(post(PATH).header("X-Secret-Key", SECRET).contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isOk()).andExpect(content().json("{\"success\":true}"));
+        verify(repository).save(argThat(inbox ->
+                inbox.getStatus() == dev.booking.sports.payment.domain.enums.PaymentInboxStatus.REVIEW_REQUIRED
+                && "PAYMENT_SUCCESS".equals(inbox.getNotificationType())));
+        verify(transactions).commit(transaction);
+    }
+
+    @Test
     void failedCommitDoesNotReturnSuccess() throws Exception {
         doThrow(new IllegalStateException("Commit failed")).when(transactions).commit(transaction);
         mvc.perform(post(PATH).header("X-Secret-Key", SECRET).contentType(MediaType.APPLICATION_JSON).content(PAYLOAD))

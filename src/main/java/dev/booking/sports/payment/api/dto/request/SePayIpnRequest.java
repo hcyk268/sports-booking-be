@@ -28,7 +28,7 @@ public record SePayIpnRequest(
             @JsonProperty("order_invoice_number") @NotBlank @Size(max = 100) String orderInvoiceNumber,
             @JsonProperty("order_description") String orderDescription,
             @JsonProperty("custom_data") JsonNode customData,
-            @JsonProperty("user_agent") String userAgent,
+            @JsonProperty("user_agent") JsonNode userAgent,
             @JsonProperty("ip_address") String ipAddress) {
     }
 

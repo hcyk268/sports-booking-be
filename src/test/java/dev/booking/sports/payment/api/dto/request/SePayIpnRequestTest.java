@@ -55,7 +55,7 @@ class SePayIpnRequestTest {
         assertThat(request.order().orderAmount()).isEqualByComparingTo("50000.00");
         assertThat(request.transaction().transactionAmount()).isEqualByComparingTo("50000");
         assertThat(request.order().customData().isArray()).isTrue();
-        assertThat(request.order().userAgent()).isEqualTo("Mozilla/5.0");
+        assertThat(request.order().userAgent().asText()).isEqualTo("Mozilla/5.0");
         assertThat(request.order().ipAddress()).isEqualTo("192.0.2.1");
         assertThat(request.transaction().cardNumber()).isEqualTo("4111XXXXXXXX1111");
         assertThat(request.transaction().cardHolderName()).isEqualTo("NGUYEN VAN A");

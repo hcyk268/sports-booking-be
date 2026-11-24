@@ -1,0 +1,34 @@
+{
+  "timestamp": 1795497958,
+  "notification_type": "PAYMENT_SUCCESS",
+  "order": {
+    "id": "8789d41a-e7c7-11f1-8895-0afffe87053b",
+    "order_id": "TEST_ORDER_1795497958",
+    "order_status": "CAPTURED",
+    "order_currency": "VND",
+    "order_amount": 50000,
+    "order_invoice_number": "INV-20261124-859201",
+    "custom_data": {"test_mode": true, "webhook_test": true},
+    "user_agent": {},
+    "ip_address": "2001:db8::1",
+    "order_description": "SePay onboarding test IPN"
+  },
+  "transaction": {
+    "id": "8789e17d-e7c7-11f1-8895-0afffe87053b",
+    "payment_method": "BANK_TRANSFER",
+    "transaction_id": "TEST_TXN_1795497958",
+    "transaction_type": "CAPTURE",
+    "transaction_date": "2026-11-24 12:25:58",
+    "transaction_status": "APPROVED",
+    "transaction_amount": 50000,
+    "transaction_currency": "VND",
+    "authentication_status": null,
+    "card_number": null,
+    "card_holder_name": null,
+    "card_expiry": null,
+    "card_funding_method": null,
+    "card_brand": null
+  },
+  "customer": null,
+  "agreement": null
+}
