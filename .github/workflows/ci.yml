@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -94,6 +95,15 @@ jobs:
           RABBITMQ_TEST_VIRTUAL_HOST: /
 
         run: ./mvnw -B clean verify
+
+      - name: Upload application JAR
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-jar
+          path: target/sports-*.jar
+          if-no-files-found: error
+          overwrite: true
 
       - name: Upload unit test reports
         if: failure()
