@@ -78,7 +78,9 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
           APP_IMAGE: ${{ needs.publish-image.outputs.image }}
         run: |
           set -euo pipefail
@@ -87,20 +89,32 @@ jobs:
             echo "::notice::Skipping deployment because this commit is no longer the head of main."
             exit 0
           fi
+          : "${DEPLOY_HOST:?Configure the DEPLOY_HOST Actions secret}"
           : "${DEPLOY_SSH_KEY:?Configure the DEPLOY_SSH_KEY Actions secret}"
-          key=$(mktemp)
-          target=deploy@56.10.184.33
+          : "${DEPLOY_SSH_KNOWN_HOSTS:?Configure the DEPLOY_SSH_KNOWN_HOSTS Actions secret}"
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || { echo "::error::Invalid DEPLOY_HOST"; exit 1; }
+          ssh_dir=$(mktemp -d)
+          key="$ssh_dir/deploy_key"
+          known_hosts="$ssh_dir/known_hosts"
+          target="deploy@$DEPLOY_HOST"
           remote_dir=
           ssh_options=(-i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$PWD/deploy/known_hosts")
+            -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$known_hosts")
           cleanup() {
             if [[ -n "$remote_dir" ]]; then
               ssh "${ssh_options[@]}" "$target" "rm -f -- '$remote_dir/compose.yaml' '$remote_dir/deploy.sh'; rmdir -- '$remote_dir'" || true
             fi
-            rm -f -- "$key"
+            rm -f -- "$key" "$known_hosts"
+            rmdir -- "$ssh_dir"
           }
           trap cleanup EXIT
+          umask 077
           printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > "$key"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" | tr -d '\r' > "$known_hosts"
+          ssh-keygen -F "$DEPLOY_HOST" -f "$known_hosts" >/dev/null || {
+            echo "::error::DEPLOY_SSH_KNOWN_HOSTS has no entry for DEPLOY_HOST"
+            exit 1
+          }
           staging_path=$(ssh "${ssh_options[@]}" "$target" 'mktemp -d /tmp/sports-booking-deploy.XXXXXXXX')
           [[ "$staging_path" =~ ^/tmp/sports-booking-deploy\.[A-Za-z0-9]{8}$ ]]
           remote_dir=$staging_path
@@ -108,4 +122,4 @@ jobs:
           [[ "$GITHUB_ACTOR" =~ ^[A-Za-z0-9_-]+(\[bot\])?$ ]]
           scp "${ssh_options[@]}" deploy/compose.yaml deploy/deploy.sh "$target:$remote_dir/"
           printf '%s' "$GHCR_TOKEN" | ssh "${ssh_options[@]}" "$target" \
-            "bash '$remote_dir/deploy.sh' '$APP_IMAGE' '$GITHUB_ACTOR'"
+            "bash '$remote_dir/deploy.sh' '$APP_IMAGE' '$GITHUB_ACTOR' '$DEPLOY_HOST'"
