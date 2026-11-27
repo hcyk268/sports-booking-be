@@ -1,0 +1,111 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  publish-image:
+    name: Publish image to GHCR
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: application-jar
+          path: image-context
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Build and publish
+        id: publish
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          mv image-context/sports-*.jar image-context/app.jar
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx build \
+            --file deploy/Dockerfile \
+            --platform linux/arm64 \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$RELEASE_SHA" \
+            --tag "$image:$RELEASE_SHA" \
+            --metadata-file "$RUNNER_TEMP/image-metadata.json" \
+            --push image-context
+          digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "$RUNNER_TEMP/image-metadata.json")
+          printf 'image=%s@%s\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
+
+  deploy-production:
+    name: Deploy backend to VPS
+    needs: publish-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: sports-booking-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Deploy current main revision
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          APP_IMAGE: ${{ needs.publish-image.outputs.image }}
+        run: |
+          set -euo pipefail
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$RELEASE_SHA" != "$current_sha" ]]; then
+            echo "::notice::Skipping deployment because this commit is no longer the head of main."
+            exit 0
+          fi
+          : "${DEPLOY_SSH_KEY:?Configure the DEPLOY_SSH_KEY Actions secret}"
+          key=$(mktemp)
+          target=deploy@56.10.184.33
+          remote_dir=
+          ssh_options=(-i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$PWD/deploy/known_hosts")
+          cleanup() {
+            if [[ -n "$remote_dir" ]]; then
+              ssh "${ssh_options[@]}" "$target" "rm -f -- '$remote_dir/compose.yaml' '$remote_dir/deploy.sh'; rmdir -- '$remote_dir'" || true
+            fi
+            rm -f -- "$key"
+          }
+          trap cleanup EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > "$key"
+          staging_path=$(ssh "${ssh_options[@]}" "$target" 'mktemp -d /tmp/sports-booking-deploy.XXXXXXXX')
+          [[ "$staging_path" =~ ^/tmp/sports-booking-deploy\.[A-Za-z0-9]{8}$ ]]
+          remote_dir=$staging_path
+          [[ "$APP_IMAGE" =~ ^ghcr\.io/[a-z0-9._-]+/[a-z0-9._-]+@sha256:[a-f0-9]{64}$ ]]
+          [[ "$GITHUB_ACTOR" =~ ^[A-Za-z0-9_-]+(\[bot\])?$ ]]
+          scp "${ssh_options[@]}" deploy/compose.yaml deploy/deploy.sh "$target:$remote_dir/"
+          printf '%s' "$GHCR_TOKEN" | ssh "${ssh_options[@]}" "$target" \
+            "bash '$remote_dir/deploy.sh' '$APP_IMAGE' '$GITHUB_ACTOR'"

@@ -1,0 +1,27 @@
+services:
+  app:
+    image: ${APP_IMAGE:?Pass the GHCR image digest}
+    env_file:
+      - ${APP_ENV_FILE:-/opt/sports-booking/app/.env}
+    environment:
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:?Set SENDGRID_API_KEY in the VPS env file}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:?Set SENDGRID_FROM_EMAIL in the VPS env file}
+    ports:
+      - "127.0.0.1:18080:8080"
+    networks:
+      - sb-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  sb-net:
+    external: true
