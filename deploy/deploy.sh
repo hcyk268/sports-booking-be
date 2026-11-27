@@ -3,6 +3,7 @@ set -euo pipefail
 
 export APP_IMAGE="${1:?Pass the GHCR image digest}"
 registry_user="${2:?Pass the GitHub actor}"
+deploy_host="${3:?Pass the deployment host}"
 app_dir=/opt/sports-booking/app
 export APP_ENV_FILE="$app_dir/.env"
 compose_file="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/compose.yaml"
@@ -27,8 +28,8 @@ if ! "${compose[@]}" up -d --no-deps --pull never --wait --wait-timeout 150 app;
 fi
 
 curl --noproxy '*' --fail --silent --show-error --max-time 15 \
-    --connect-to 56.10.184.33:443:127.0.0.1:443 \
-    -o /dev/null https://56.10.184.33/api/v1/sports
+    --connect-to "$deploy_host:443:127.0.0.1:443" \
+    -o /dev/null "https://$deploy_host/api/v1/sports"
 
 install -m 0644 "$compose_file" "$app_dir/.compose.yaml.next"
 mv -f -- "$app_dir/.compose.yaml.next" "$app_dir/compose.yaml"
